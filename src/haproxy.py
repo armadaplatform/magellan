@@ -19,9 +19,9 @@ global
 
 defaults
     mode http
-    timeout connect 5000ms
-    timeout client 50000ms
-    timeout server 50000ms
+    timeout connect 5s
+    timeout client 300s
+    timeout server 300s
     option http-server-close
 
 frontend http-in
@@ -32,9 +32,9 @@ frontend http-in
 
     DEFAULT_BACKEND = '''
 backend backend_default
-    server server_0 localhost:8080 maxconn 32
+    server server_0 localhost:8080 maxconn {max_connections_service}
 
-'''
+'''.format(max_connections_service=MAX_CONNECTIONS_SERVICE)
 
     def __init__(self, load_balancer):
         self.load_balancer = load_balancer
