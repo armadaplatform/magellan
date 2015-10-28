@@ -5,6 +5,7 @@ import time
 import random
 import traceback
 import re
+
 import requests
 
 import consul
@@ -12,7 +13,6 @@ import domains
 from hermes import get_config
 import haproxy
 from utils import print_err
-
 
 WILDCARD_PATTERN = '%(?P<variable>[^%]+)%'
 NAMED_WILDCARD_PATTERN = '(?P<\\g<variable>>[A-Za-z_][A-Za-z_\-0-9\.]+)'
@@ -54,41 +54,59 @@ def get_load_balancers():
             print_err("Unknown load-balancer type: {load_balancer_type}".format(**locals()))
 
 
+def match_domains_to_services(domain_wildcard, name, env, app_id, service_to_addresses):
+    result = {}
+    service_index = (name, env, app_id)
+
+    service_index_pattern = [create_named_pattern_for_wildcard(wildcard) for wildcard in service_index]
+    if any(named_pattern and '%' in named_pattern for named_pattern in service_index_pattern):
+        print_err('Invalid wildcard in {service_index}'.format(**locals()))
+        return result
+    for service, addresses in service_to_addresses.items():
+        replacements = {}
+        matched = True
+        for i, named_pattern in enumerate(service_index_pattern):
+            if not named_pattern and not service[i]:
+                continue
+            if not named_pattern or not service[i]:
+                matched = False
+                break
+            match = re.match('^' + named_pattern + '$', service[i])
+            if not match:
+                matched = False
+                break
+            replacements.update(match.groupdict())
+        if matched:
+            domain = str(domain_wildcard)
+            for pattern_name, replacement in replacements.items():
+                domain = domain.replace('%{0}%'.format(pattern_name), replacement)
+            if not re.match(DOMAIN_PATTERN, domain):
+                print_err('Invalid domain: {domain}'.format(**locals()))
+                continue
+            result[domain] = addresses
+    return result
+
+
+def match_domains_to_address(domain_wildcard, address):
+    result = {domain_wildcard: [address]}
+    return result
+
+
 def match_domains_to_addresses(domains_to_services, service_to_addresses):
     result = {}
     for domain_wildcard, service_definition in domains_to_services.items():
         if service_definition.get('protocol') != 'http':
             continue
-        env = service_definition.get('environment')
-        app_id = service_definition.get('app_id')
-        service_index = (service_definition['service_name'], env, app_id)
+        address = service_definition.get('address')
+        if address:
+            mapping = match_domains_to_address(domain_wildcard, address)
+        else:
+            env = service_definition.get('environment')
+            app_id = service_definition.get('app_id')
+            name = service_definition['service_name']
+            mapping = match_domains_to_services(domain_wildcard, name, env, app_id, service_to_addresses)
+        result.update(mapping)
 
-        service_index_pattern = [create_named_pattern_for_wildcard(wildcard) for wildcard in service_index]
-        if any(named_pattern and '%' in named_pattern for named_pattern in service_index_pattern):
-            print_err('Invalid wildcard in {service_index}'.format(**locals()))
-            continue
-        for service, addresses in service_to_addresses.items():
-            replacements = {}
-            matched = True
-            for i, named_pattern in enumerate(service_index_pattern):
-                if not named_pattern and not service[i]:
-                    continue
-                if not named_pattern or not service[i]:
-                    matched = False
-                    break
-                match = re.match('^' + named_pattern + '$', service[i])
-                if not match:
-                    matched = False
-                    break
-                replacements.update(match.groupdict())
-            if matched:
-                domain = str(domain_wildcard)
-                for pattern_name, replacement in replacements.items():
-                    domain = domain.replace('%{0}%'.format(pattern_name), replacement)
-                if not re.match(DOMAIN_PATTERN, domain):
-                    print_err('Invalid domain: {domain}'.format(**locals()))
-                    continue
-                result[domain] = addresses
     return result
 
 
