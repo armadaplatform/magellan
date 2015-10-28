@@ -44,14 +44,14 @@ and contain list of json objects like the one below:
 Here, requests to two domains (`badguys.initech.com` and `www.badguys.initech.com`) will be redirected to the main endpoint
 of service `badguys-finder` run with environment `production-office`.
 
-The third domain `dashboard.initech.com` will be redirected to `server2.internal-initech.com:8080`, which shows that
-we can easily create aliases for non-armada services too.
+The third domain - `dashboard.initech.com` - will be redirected to `server2.internal-initech.com:8080`, which shows
+that we can easily create pretty aliases for non-armada services too.
 It can also be used for exposing services available only from internal networks (e.g. `internal-initech.com`) to
 the public - `initech.com`.
 
 ## Wildcards.
 
-In case you have a set of similiar services that differ by environment or app_id you can use wildcards to configure them,
+In case you have a set of similar services that differ by environment or app_id you can use wildcards to configure them,
 e.g.:
 
     {
@@ -71,6 +71,7 @@ just put it between the `%` characters.
 It is also possible to redirect only certain path of the domain, so instead of `translation.%GAME_NAME%.initech.com`
 you can also use something like `translation.initech.com/%GAME_NAME%`.
 
+Wildcards do not work with `address` field.
 
 ## Choosing which load balancers to configure.
 
