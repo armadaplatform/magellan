@@ -1,7 +1,7 @@
 # magellan
 
-`magellan` is a service for configuring load-balancers to redirect net traffic to microservices that run
-in the Armada cluster.
+`magellan` is a service for configuring load-balancers to redirect net traffic to given addresses or microservices
+that run in the Armada cluster.
 Right now it supports only HTTP redirects through HAProxy configuration. It is recommended to run it alongside
 `main-haproxy` service(s) and let `magellan` configure them.
 
@@ -12,7 +12,7 @@ Right now it supports only HTTP redirects through HAProxy configuration. It is r
     armada run magellan
 
 `magellan` is configured using Hermes.
-It reads list of domain --> service mappings from all files `domains-*.json`. They should be in json format
+It reads list of domain --> service mappings/addresses from all files `domains-*.json`. They should be in json format
 and contain list of json objects like the one below:
 
     {
@@ -25,6 +25,10 @@ and contain list of json objects like the one below:
             "protocol": "http",
             "service_name": "badguys-finder",
             "environment": "production-office"
+        },
+        "dashboard.initech.com": {
+            "protocol": "http",
+            "address": "server2.internal-initech.com:8080"
         }
     }
 
@@ -34,10 +38,16 @@ and contain list of json objects like the one below:
     * `service_name`, `environment`, `app_id` - Name (required), environment (optional) and app_id (optional) of the target microservice.
 
         If environment/app_id is not supplied, `magellan` will look only for services with no environment/app_id set.
-
+      
+    * `address` - Address to which the domain will be pointed to. If provided, it will override service_name/environment/app_id.
 
 Here, requests to two domains (`badguys.initech.com` and `www.badguys.initech.com`) will be redirected to the main endpoint
 of service `badguys-finder` run with environment `production-office`.
+
+The third domain `dashboard.initech.com` will be redirected to `server2.internal-initech.com:8080`, which shows that
+we can easily create aliases for non-armada services too.
+It can also be used for exposing services available only from internal networks (e.g. `internal-initech.com`) to
+the public - `initech.com`.
 
 ## Wildcards.
 
