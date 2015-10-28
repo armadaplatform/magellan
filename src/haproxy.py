@@ -55,7 +55,7 @@ backend backend_default
     def generate_config_from_domains_to_addresses(self, domains_to_addresses):
         result = self.CONFIG_HEADER.format(listen_port=self.listen_port,
                                            max_connections=self.MAX_CONNECTIONS_GLOBAL)
-        domains = list(domains_to_addresses.items())
+        domains = list(sorted(domains_to_addresses.items(), key=lambda item: -len(item[0])))
         urls = [self.split_url(domain) for domain, _ in domains]
         for i, (host, path) in enumerate(urls):
             lines = '\tacl host_{i} hdr(host) -i {host}\n'
