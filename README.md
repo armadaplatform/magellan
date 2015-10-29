@@ -12,7 +12,7 @@ Right now it supports only HTTP redirects through HAProxy configuration. It is r
     armada run magellan
 
 `magellan` is configured using Hermes.
-It reads list of domain --> service/addresses mappings from all files `domains-*.json`. They should be in json format
+It reads list of domain --> service/address mappings from all files `domains-*.json`. They should be in json format
 and contain list of json objects like the one below:
 
     {
@@ -38,7 +38,7 @@ and contain list of json objects like the one below:
     * `service_name`, `environment`, `app_id` - Name (required), environment (optional) and app_id (optional) of the target microservice.
 
         If environment/app_id is not supplied, `magellan` will look only for services with no environment/app_id set.
-      
+
     * `address` - Address to which the domain will be pointed to. If provided, it will override service_name/environment/app_id.
 
 Here, requests to two domains (`badguys.initech.com` and `www.badguys.initech.com`) will be redirected to the main endpoint
