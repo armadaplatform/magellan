@@ -12,7 +12,7 @@ Right now it supports only HTTP redirects through HAProxy configuration. It is r
     armada run magellan
 
 `magellan` is configured using Hermes.
-It reads list of domain --> service mappings/addresses from all files `domains-*.json`. They should be in json format
+It reads list of domain --> service/addresses mappings from all files `domains-*.json`. They should be in json format
 and contain list of json objects like the one below:
 
     {

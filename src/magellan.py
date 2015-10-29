@@ -101,9 +101,9 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
         if address:
             mapping = match_domains_to_address(domain_wildcard, address)
         else:
+            name = service_definition['service_name']
             env = service_definition.get('environment')
             app_id = service_definition.get('app_id')
-            name = service_definition['service_name']
             mapping = match_domains_to_services(domain_wildcard, name, env, app_id, service_to_addresses)
         result.update(mapping)
 
