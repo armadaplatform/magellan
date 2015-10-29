@@ -55,7 +55,12 @@ backend backend_default
     def generate_config_from_domains_to_addresses(self, domains_to_addresses):
         result = self.CONFIG_HEADER.format(listen_port=self.listen_port,
                                            max_connections=self.MAX_CONNECTIONS_GLOBAL)
-        domains = list(domains_to_addresses.items())
+
+        # Sort by the length of domains (descending), to ensure that entries for overlapping paths like:
+        #    example.com/sub/path, example.com/sub, example.com
+        # will be ordered starting from the most specific one.
+        domains = list(sorted(domains_to_addresses.items(), key=lambda (domain, _): -len(domain)))
+
         urls = [self.split_url(domain) for domain, _ in domains]
         for i, (host, path) in enumerate(urls):
             lines = '\tacl host_{i} hdr(host) -i {host}\n'
