@@ -1,25 +1,22 @@
 from __future__ import print_function
 from collections import defaultdict
-import json
+import sys
 
 import requests
 
-
-SHIP_IP = '172.17.42.1'
+sys.path.append('/opt/microservice/src')
+import common.consul
 
 
 class Consul(object):
     @staticmethod
-    def _query(query):
-        url = 'http://{hostname}:8500/v1/{query}'.format(hostname=SHIP_IP, query=query)
-        return json.loads(requests.get(url).text)
-
-    @staticmethod
     def get_local_armada_address():
-        local_services_dict = Consul._query('agent/services')
+        local_services_dict = common.consul.consul_query('agent/services')
+        ship_ip = common.consul._get_ship_ip()
         for service in local_services_dict.values():
             if service['Service'] == 'armada':
-                return '{}:{}'.format(SHIP_IP, service['Port'])
+                return '{}:{}'.format(ship_ip, service['Port'])
+        raise Exception('Could not find local Armada agent.')
 
     @staticmethod
     def discover():
