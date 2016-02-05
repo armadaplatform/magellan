@@ -8,11 +8,12 @@ import re
 import time
 import traceback
 
+import requests
+from hermes import get_config
+
 import consul
 import domains
 import haproxy
-import requests
-from hermes import get_config
 from utils import print_err
 
 WILDCARD_PATTERN = '%(?P<variable>[^%]+)%'
@@ -112,7 +113,7 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.WARNING)
     while True:
         try:
             domains_to_services = domains.get_domains_to_services()
