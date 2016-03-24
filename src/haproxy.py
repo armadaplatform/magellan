@@ -12,10 +12,12 @@ import remote
 class Haproxy(object):
     MAX_CONNECTIONS_GLOBAL = 256
     MAX_CONNECTIONS_SERVICE = 32
-    CONFIG_HEADER = '''
+    CONFIG_HEADER = r'''
 global
     daemon
     maxconn {max_connections}
+    stats socket :8001
+
 
 defaults
     mode http
@@ -29,6 +31,12 @@ frontend http-in
     default_backend backend_default
 
 '''
+
+# listen stats :8001
+#     mode http
+#     stats enable
+#     stats realm Haproxy\ Statistics
+#     stats uri /
 
     DEFAULT_BACKEND = '''
 backend backend_default
