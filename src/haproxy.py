@@ -1,12 +1,22 @@
 from __future__ import print_function
+
+import base64
 import hashlib
 import os
-import base64
+import socket
 import traceback
 
 import requests
 
 import remote
+
+
+def _is_ip(hostname):
+    try:
+        socket.inet_aton(hostname)
+        return True
+    except socket.error:
+        return False
 
 
 class Haproxy(object):
@@ -80,6 +90,9 @@ backend backend_default
                 lines += '\treqirep ^([^\ ]*)\ /{path}/(.*)  \\1\ /\\2\n'
             for j, address in enumerate(domains[i][1]):
                 lines += '\tserver server_{j} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
+                hostname = address.split(':')[0]
+                if not _is_ip(hostname):
+                    lines += '\thttp-request set-header Host {}\n'.format(address)
             lines += '\n'
             if path:
                 lines += 'backend backend_{i}a\n'
@@ -97,8 +110,8 @@ backend backend_default
         remote_address = self.load_balancer['ssh']
         remote.put_remote_file(self.config_path, self.config_path, remote_address)
         code, out, err = remote.execute_remote_command(
-            'sudo cp {source} {dest}'.format(source=self.config_path, dest='/etc/haproxy/haproxy.cfg'),
-            remote_address)
+                'sudo cp {source} {dest}'.format(source=self.config_path, dest='/etc/haproxy/haproxy.cfg'),
+                remote_address)
         if code != 0:
             raise Exception('put_config error: {err}'.format(err=err))
 
