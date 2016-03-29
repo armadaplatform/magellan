@@ -117,11 +117,12 @@ def main():
     while True:
         try:
             domains_to_services = domains.get_domains_to_services()
-            logging.info(json.dumps(domains_to_services, indent=4))
+            logging.info('domains_to_services: {}'.format(json.dumps(domains_to_services, indent=4)))
             service_to_addresses = consul.Consul.discover()
-            logging.info(str(service_to_addresses))
+            logging.info('service_to_addresses: {}'.format(
+                json.dumps({str(k): v for k, v in service_to_addresses.items()}, indent=4)))
             domain_to_addresses = match_domains_to_addresses(domains_to_services, service_to_addresses)
-            logging.info(json.dumps(domain_to_addresses, indent=4))
+            logging.info('domain_to_addresses: {}'.format(json.dumps(domain_to_addresses, indent=4)))
             if domain_to_addresses:
                 with open(DOMAIN_TO_ADDRESSES_PATH, 'w') as f:
                     json.dump(domain_to_addresses, f, indent=4, sort_keys=True)
