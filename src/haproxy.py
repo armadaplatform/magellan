@@ -1,12 +1,14 @@
 from __future__ import print_function
+
+import base64
 import hashlib
 import os
-import base64
 import traceback
 
 import requests
 
 import remote
+from utils import print_err
 
 
 class Haproxy(object):
@@ -112,7 +114,7 @@ backend backend_default
         try:
             os.remove(self.config_path)
         except OSError:
-            pass
+            traceback.print_exc()
 
     def update(self, domains_to_addresses):
         old_config = self.get_current_config()
@@ -129,6 +131,7 @@ backend backend_default
 class MainHaproxy(Haproxy):
     def __init__(self, load_balancer):
         super(MainHaproxy, self).__init__(load_balancer)
+        self.config_path = '/tmp/main-haproxy_{}.cfg'.format(self.load_balancer['container_id'])
 
     def restart(self):
         pass
