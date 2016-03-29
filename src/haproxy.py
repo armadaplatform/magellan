@@ -110,8 +110,8 @@ backend backend_default
         remote_address = self.load_balancer['ssh']
         remote.put_remote_file(self.config_path, self.config_path, remote_address)
         code, out, err = remote.execute_remote_command(
-                'sudo cp {source} {dest}'.format(source=self.config_path, dest='/etc/haproxy/haproxy.cfg'),
-                remote_address)
+            'sudo cp {source} {dest}'.format(source=self.config_path, dest='/etc/haproxy/haproxy.cfg'),
+            remote_address)
         if code != 0:
             raise Exception('put_config error: {err}'.format(err=err))
 
@@ -125,7 +125,7 @@ backend backend_default
         try:
             os.remove(self.config_path)
         except OSError:
-            pass
+            traceback.print_exc()
 
     def update(self, domains_to_addresses):
         old_config = self.get_current_config()
@@ -142,6 +142,7 @@ backend backend_default
 class MainHaproxy(Haproxy):
     def __init__(self, load_balancer):
         super(MainHaproxy, self).__init__(load_balancer)
+        self.config_path = '/tmp/main-haproxy_{}.cfg'.format(self.load_balancer['container_id'])
 
     def restart(self):
         pass
