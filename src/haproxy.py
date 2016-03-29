@@ -3,12 +3,20 @@ from __future__ import print_function
 import base64
 import hashlib
 import os
+import socket
 import traceback
 
 import requests
 
 import remote
-from utils import print_err
+
+
+def _is_ip(hostname):
+    try:
+        socket.inet_aton(hostname)
+        return True
+    except socket.error:
+        return False
 
 
 class Haproxy(object):
@@ -82,6 +90,9 @@ backend backend_default
                 lines += '\treqirep ^([^\ ]*)\ /{path}/(.*)  \\1\ /\\2\n'
             for j, address in enumerate(domains[i][1]):
                 lines += '\tserver server_{j} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
+                hostname = address.split(':')[0]
+                if not _is_ip(hostname):
+                    lines += '\thttp-request set-header Host {}\n'.format(address)
             lines += '\n'
             if path:
                 lines += 'backend backend_{i}a\n'

@@ -1,16 +1,18 @@
 from __future__ import print_function
+
 import json
+import logging
 import os
-import time
 import random
-import traceback
 import re
+import time
+import traceback
 
 import requests
+from hermes import get_config
 
 import consul
 import domains
-from hermes import get_config
 import haproxy
 from utils import print_err
 
@@ -111,11 +113,15 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
 
 
 def main():
+    logging.basicConfig(level=logging.WARNING)
     while True:
         try:
             domains_to_services = domains.get_domains_to_services()
+            logging.info(json.dumps(domains_to_services, indent=4))
             service_to_addresses = consul.Consul.discover()
+            logging.info(str(service_to_addresses))
             domain_to_addresses = match_domains_to_addresses(domains_to_services, service_to_addresses)
+            logging.info(json.dumps(domain_to_addresses, indent=4))
             if domain_to_addresses:
                 with open(DOMAIN_TO_ADDRESSES_PATH, 'w') as f:
                     json.dump(domain_to_addresses, f, indent=4, sort_keys=True)
