@@ -1,12 +1,22 @@
 from __future__ import print_function
+
+import base64
 import hashlib
 import os
-import base64
+import socket
 import traceback
 
 import requests
 
 import remote
+
+
+def _is_ip(hostname):
+    try:
+        socket.inet_aton(hostname)
+        return True
+    except socket.error:
+        return False
 
 
 class Haproxy(object):
@@ -88,6 +98,9 @@ backend backend_default
                 lines += '\treqirep ^([^\ ]*)\ /{path}/(.*)  \\1\ /\\2\n'
             for j, address in enumerate(domains[i][1]):
                 lines += '\tserver server_{j} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
+                hostname = address.split(':')[0]
+                if not _is_ip(hostname):
+                    lines += '\thttp-request set-header Host {}\n'.format(address)
             lines += '\n'
             if path:
                 lines += 'backend backend_{i}a\n'
@@ -120,7 +133,7 @@ backend backend_default
         try:
             os.remove(self.config_path)
         except OSError:
-            pass
+            traceback.print_exc()
 
     def update(self, domains_to_addresses):
         old_config = self.get_current_config()
@@ -137,6 +150,7 @@ backend backend_default
 class MainHaproxy(Haproxy):
     def __init__(self, load_balancer):
         super(MainHaproxy, self).__init__(load_balancer)
+        self.config_path = '/tmp/main-haproxy_{}.cfg'.format(self.load_balancer['container_id'])
 
     def restart(self):
         pass
