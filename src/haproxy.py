@@ -3,6 +3,7 @@ from __future__ import print_function
 import base64
 import hashlib
 import os
+import re
 import socket
 import traceback
 
@@ -19,13 +20,21 @@ def _is_ip(hostname):
         return False
 
 
+def _clean_string(s):
+    return re.sub(r'[^a-zA-Z0-9_\-\.]', '_', s)
+
+
 class Haproxy(object):
     MAX_CONNECTIONS_GLOBAL = 256
     MAX_CONNECTIONS_SERVICE = 32
-    CONFIG_HEADER = '''
+
+    CONFIG_HEADER = r'''
 global
     daemon
     maxconn {max_connections}
+    stats socket /var/run/haproxy/stats.sock
+
+{stats_section}
 
 defaults
     mode http
@@ -40,11 +49,38 @@ frontend http-in
 
 '''
 
+    STATS_SECTION = r'''
+
+listen stats
+    bind            *:8001
+    mode            http
+    log             global
+
+    maxconn 10
+
+    timeout client      100s
+    timeout server      100s
+    timeout connect     100s
+    timeout queue       100s
+
+    stats enable
+    stats hide-version
+    stats refresh 30s
+    stats show-node
+    stats auth {stats_user}:{stats_password}
+    stats uri /
+
+'''
+
     DEFAULT_BACKEND = '''
 backend backend_default
     server server_0 localhost:8080 maxconn {max_connections_service}
 
 '''.format(max_connections_service=MAX_CONNECTIONS_SERVICE)
+
+    stats_enabled = False
+    stats_user = 'root'
+    stats_password = 'armada'
 
     def __init__(self, load_balancer):
         self.load_balancer = load_balancer
@@ -63,8 +99,16 @@ backend backend_default
         return host, path.strip('/')
 
     def generate_config_from_domains_to_addresses(self, domains_to_addresses):
-        result = self.CONFIG_HEADER.format(listen_port=self.listen_port,
-                                           max_connections=self.MAX_CONNECTIONS_GLOBAL)
+        stats_section = self.STATS_SECTION if self.stats_enabled else ''
+        stats_section = stats_section.format(
+            stats_user=self.stats_user,
+            stats_password=self.stats_password,
+        )
+        result = self.CONFIG_HEADER.format(
+            listen_port=self.listen_port,
+            max_connections=self.MAX_CONNECTIONS_GLOBAL,
+            stats_section=stats_section,
+        )
 
         # Sort by the length of domains (descending), to ensure that entries for overlapping paths like:
         #    example.com/sub/path, example.com/sub, example.com
@@ -73,19 +117,21 @@ backend backend_default
 
         urls = [self.split_url(domain) for domain, _ in domains]
         for i, (host, path) in enumerate(urls):
+            cleaned_host = _clean_string(host)
             lines = '\tacl host_{i} hdr(host) -i {host}\n'
             if path:
                 lines += '\tacl path_{i} path_beg /{path}/\n'
-                lines += '\tuse_backend backend_{i} if host_{i} path_{i}\n'
+                lines += '\tuse_backend backend_{i}_{cleaned_host} if host_{i} path_{i}\n'
                 lines += '\tacl path_{i}a path /{path}\n'
-                lines += '\tuse_backend backend_{i}a if host_{i} path_{i}a\n'
+                lines += '\tuse_backend backend_{i}a_{cleaned_host} if host_{i} path_{i}a\n'
             else:
-                lines += '\tuse_backend backend_{i} if host_{i}\n'
+                lines += '\tuse_backend backend_{i}_{cleaned_host} if host_{i}\n'
             lines += '\n'
             result += lines.format(**locals())
         max_connections_service = self.MAX_CONNECTIONS_SERVICE
         for i, (host, path) in enumerate(urls):
-            lines = 'backend backend_{i}\n'
+            cleaned_host = _clean_string(host)
+            lines = 'backend backend_{i}_{cleaned_host}\n'
             if path:
                 lines += '\treqirep ^([^\ ]*)\ /{path}/(.*)  \\1\ /\\2\n'
             for j, address in enumerate(domains[i][1]):
@@ -95,7 +141,7 @@ backend backend_default
                     lines += '\thttp-request set-header Host {}\n'.format(address)
             lines += '\n'
             if path:
-                lines += 'backend backend_{i}a\n'
+                lines += 'backend backend_{i}a_{cleaned_host}\n'
                 lines += '\treqirep ^([^\\ ]*)\\ /{path}\\ (.*)  \\1\\ /\\ \\2\n'
                 for j, address in enumerate(domains[i][1]):
                     lines += '\tserver server_{j} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
@@ -137,6 +183,12 @@ backend backend_default
             except:
                 traceback.print_exc()
                 self.clear_current_config()
+
+    def configure_stats(self, stats_config):
+        stats_config = stats_config or {}
+        self.stats_enabled = stats_config.get('enabled') or self.stats_enabled
+        self.stats_user = stats_config.get('user') or self.stats_user
+        self.stats_password = stats_config.get('password') or self.stats_password
 
 
 class MainHaproxy(Haproxy):

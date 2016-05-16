@@ -9,7 +9,7 @@ import time
 import traceback
 
 import requests
-from hermes import get_config
+from armada import hermes
 
 import consul
 import domains
@@ -38,7 +38,7 @@ def get_matching_main_haproxies(env):
 
 
 def get_load_balancers():
-    load_balancer_configs = get_config('load-balancers.json')
+    load_balancer_configs = hermes.get_config('load-balancers.json')
     if not load_balancer_configs:
         load_balancer_configs = [{
             'type': 'main-haproxy',
@@ -47,11 +47,17 @@ def get_load_balancers():
     for load_balancer_config in load_balancer_configs:
         load_balancer_type = load_balancer_config['type']
         if load_balancer_type == 'haproxy':
-            yield haproxy.Haproxy(load_balancer_config)
+            load_balancer = haproxy.Haproxy(load_balancer_config)
+            stats_config = load_balancer_config.get('stats')
+            load_balancer.configure_stats(stats_config)
+            yield load_balancer
         elif load_balancer_type == 'main-haproxy':
             main_haproxies = get_matching_main_haproxies(load_balancer_config.get('env'))
             for main_haproxy in main_haproxies:
-                yield haproxy.MainHaproxy(main_haproxy)
+                load_balancer = haproxy.MainHaproxy(main_haproxy)
+                stats_config = load_balancer_config.get('stats')
+                load_balancer.configure_stats(stats_config)
+                yield load_balancer
         else:
             print_err("Unknown load-balancer type: {load_balancer_type}".format(**locals()))
 

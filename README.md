@@ -99,6 +99,26 @@ configuration directory. It should contain a json array with list of HAProxies t
 You can ask `magellan` to configure either `main-haproxy` Armada service or pure HAProxy instance. In the latter case
 providing proper SSH credentials to the server with HAProxy is required.
 
+### Enabling HAProxy stats
+
+Additionally you can enable HAProxy html stats (see http://tecadmin.net/how-to-configure-haproxy-statics/). It will be
+accessible as another endpoint in `main-haproxy`, registered in Armada catalog as `main-haproxy:stats` subservice.
+
+To do that add section "stats" to load-balancer config, e.g.:
+
+    [
+        {
+            "type": "main-haproxy",
+            "env": "production-aws",
+            "stats": {
+                "enabled": true,
+                "user": "admin",
+                "password": "secret"
+            }
+        }
+    ]
+
+`user` and `password` fields are optional. The default are `root` / `armada`.
 
 # API
 
