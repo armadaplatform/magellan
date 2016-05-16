@@ -118,6 +118,7 @@ To do that add section "stats" to load-balancer config, e.g.:
         }
     ]
 
+`user` and `password` fields are optional. The default are `root` / `armada`.
 
 # API
 
