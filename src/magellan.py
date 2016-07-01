@@ -132,8 +132,7 @@ def main():
             if domain_to_addresses:
                 with open(DOMAIN_TO_ADDRESSES_PATH, 'w') as f:
                     json.dump(domain_to_addresses, f, indent=4, sort_keys=True)
-                load_balancers = list(get_load_balancers())
-                for load_balancer in load_balancers:
+                for load_balancer in get_load_balancers():
                     load_balancer.update(domain_to_addresses)
         except:
             traceback.print_exc()
