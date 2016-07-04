@@ -13,6 +13,7 @@ from armada import hermes
 import remote
 
 auth_config = hermes.get_config('auth_config.json', {})
+AUTHORIZATION_TOKEN = auth_config.get('main_haproxy_auth_token')
 
 
 def _is_ip(hostname):
@@ -205,11 +206,10 @@ class MainHaproxy(Haproxy):
     @staticmethod
     def get_headers():
         headers = {}
-        auth_token = auth_config.get('token')
         # if token was provided, let's introduce ourselves with it
         # in case main-haproxy requires it.
-        if auth_token:
-            headers['Authorization'] = 'Token {}'.format(auth_token)
+        if AUTHORIZATION_TOKEN:
+            headers['Authorization'] = 'Token {}'.format(AUTHORIZATION_TOKEN)
         return headers
 
     def put_config(self, config):
