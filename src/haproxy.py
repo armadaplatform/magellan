@@ -8,8 +8,12 @@ import socket
 import traceback
 
 import requests
+from armada import hermes
 
 import remote
+
+auth_config = hermes.get_config('auth_config.json', {})
+AUTHORIZATION_TOKEN = auth_config.get('main_haproxy_auth_token')
 
 
 def _is_ip(hostname):
@@ -199,11 +203,20 @@ class MainHaproxy(Haproxy):
     def restart(self):
         pass
 
+    @staticmethod
+    def get_headers():
+        headers = {}
+        # if token was provided, let's introduce ourselves with it
+        # in case main-haproxy requires it.
+        if AUTHORIZATION_TOKEN:
+            headers['Authorization'] = 'Token {}'.format(AUTHORIZATION_TOKEN)
+        return headers
+
     def put_config(self, config):
         with open(self.config_path, 'w') as config_file:
             config_file.write(config)
         address = self.load_balancer['address']
         url = 'http://{address}/upload_config'.format(**locals())
-        response = requests.post(url, data=base64.b64encode(config))
+        response = requests.post(url, data=base64.b64encode(config), headers=self.get_headers())
         if response.status_code != 200:
             raise Exception('upload_config http code: {status_code}'.format(status_code=response.status_code))
