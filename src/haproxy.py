@@ -50,6 +50,7 @@ defaults
 frontend http-in
     bind *:{listen_port}
     default_backend backend_default
+    http-request del-header Proxy
 
 '''
 
@@ -79,6 +80,7 @@ listen stats
     DEFAULT_BACKEND = '''
 backend backend_default
     server server_0 localhost:8080 maxconn {max_connections_service}
+    http-request del-header Proxy
 
 '''.format(max_connections_service=MAX_CONNECTIONS_SERVICE)
 
@@ -136,6 +138,7 @@ backend backend_default
         for i, (host, path) in enumerate(urls):
             cleaned_host = _clean_string(host)
             lines = 'backend backend_{i}_{cleaned_host}\n'
+            lines += '\thttp-request del-header Proxy\n'
             if path:
                 lines += '\treqirep ^([^\ ]*)\ /{path}/(.*)  \\1\ /\\2\n'
             for j, address in enumerate(domains[i][1]):
@@ -146,6 +149,7 @@ backend backend_default
             lines += '\n'
             if path:
                 lines += 'backend backend_{i}a_{cleaned_host}\n'
+                lines += '\thttp-request del-header Proxy\n'
                 lines += '\treqirep ^([^\\ ]*)\\ /{path}\\ (.*)  \\1\\ /\\ \\2\n'
                 for j, address in enumerate(domains[i][1]):
                     lines += '\tserver server_{j} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
