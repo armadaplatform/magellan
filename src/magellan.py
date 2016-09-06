@@ -3,7 +3,6 @@ from __future__ import print_function
 import json
 import logging
 import os
-import random
 import re
 import time
 import traceback
@@ -20,7 +19,8 @@ WILDCARD_PATTERN = '%(?P<variable>[^%]+)%'
 NAMED_WILDCARD_PATTERN = '(?P<\\g<variable>>[A-Za-z_][A-Za-z_\-0-9\.]+)'
 DOMAIN_PATTERN = '^[\w\-\./]+$'
 DOMAIN_TO_ADDRESSES_PATH = '/tmp/domain_to_addresses.json'
-
+TIMEOUT = '10s'
+MINIMAL_INTERVAL = 1
 
 def create_named_pattern_for_wildcard(wildcard):
     if not wildcard:
@@ -120,7 +120,9 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
 
 def main():
     logging.basicConfig(level=logging.WARNING)
+    x_consul_index = 0
     while True:
+        x_consul_index = consul.Consul.watch_for_health_checks(x_consul_index, TIMEOUT)
         try:
             domains_to_services = domains.get_domains_to_services()
             logging.info('domains_to_services: {}'.format(json.dumps(domains_to_services, indent=4)))
@@ -136,7 +138,7 @@ def main():
                     load_balancer.update(domain_to_addresses)
         except:
             traceback.print_exc()
-        time.sleep(10 + random.uniform(-2, 2))
+        time.sleep(MINIMAL_INTERVAL)
 
 
 if __name__ == '__main__':
