@@ -29,3 +29,12 @@ class Consul(object):
             service_index = (service['name'], service['tags'].get('env'), service['tags'].get('app_id'))
             service_to_addresses[service_index].append(service['address'])
         return service_to_addresses
+
+    @staticmethod
+    def watch_for_health_checks(x_consul_index, wait):
+        consul_url = common.consul._get_consul_url()
+        url = '{}health/state/any'.format(consul_url)
+        payload = {'index': x_consul_index, 'wait': wait}
+        response = requests.get(url, params=payload)
+        response.raise_for_status()
+        return response.headers['X-Consul-Index']

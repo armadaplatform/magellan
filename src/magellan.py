@@ -6,7 +6,6 @@ import os
 import re
 import time
 import traceback
-import sys
 
 import requests
 from armada import hermes
@@ -15,9 +14,6 @@ import consul
 import domains
 import haproxy
 from utils import print_err
-
-sys.path.append('/opt/microservice/src')
-import common.consul
 
 WILDCARD_PATTERN = '%(?P<variable>[^%]+)%'
 NAMED_WILDCARD_PATTERN = '(?P<\\g<variable>>[A-Za-z_][A-Za-z_\-0-9\.]+)'
@@ -125,8 +121,8 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
 def main():
     logging.basicConfig(level=logging.WARNING)
     x_consul_index = 0
-    ship_ip = common.consul._get_ship_ip()
     while True:
+        x_consul_index = consul.Consul.watch_for_health_checks(x_consul_index, TIMEOUT)
         try:
             domains_to_services = domains.get_domains_to_services()
             logging.info('domains_to_services: {}'.format(json.dumps(domains_to_services, indent=4)))
@@ -142,15 +138,7 @@ def main():
                     load_balancer.update(domain_to_addresses)
         except:
             traceback.print_exc()
-        start_time = time.time()
-        url = 'http://{}:8500/v1/health/state/any'.format(ship_ip)
-        payload = {'index': x_consul_index, 'wait': TIMEOUT}
-        response = requests.get(url, params=payload)
-        response.raise_for_status()
-        x_consul_index = response.headers['X-Consul-Index']
-        duration = time.time() - start_time
-        if duration < MINIMAL_INTERVAL:
-            time.sleep(MINIMAL_INTERVAL - duration)
+        time.sleep(MINIMAL_INTERVAL)
 
 
 if __name__ == '__main__':
