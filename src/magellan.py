@@ -6,6 +6,7 @@ import os
 import re
 import time
 import traceback
+import sys
 
 import requests
 from armada import hermes
@@ -15,11 +16,15 @@ import domains
 import haproxy
 from utils import print_err
 
+sys.path.append('/opt/microservice/src')
+import common.consul
+
 WILDCARD_PATTERN = '%(?P<variable>[^%]+)%'
 NAMED_WILDCARD_PATTERN = '(?P<\\g<variable>>[A-Za-z_][A-Za-z_\-0-9\.]+)'
 DOMAIN_PATTERN = '^[\w\-\./]+$'
 DOMAIN_TO_ADDRESSES_PATH = '/tmp/domain_to_addresses.json'
-
+TIMEOUT = '10s'
+MINIMAL_INTERVAL = 1
 
 def create_named_pattern_for_wildcard(wildcard):
     if not wildcard:
@@ -118,56 +123,34 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(levelname)s] - %(message)s')
-
-    try:
-        domains_to_services = domains.get_domains_to_services()
-        logging.info('domains_to_services: {}'.format(json.dumps(domains_to_services, indent=4)))
-        service_to_addresses = consul.Consul.discover()
-        logging.info('service_to_addresses: {}'.format(
-            json.dumps({str(k): v for k, v in service_to_addresses.items()}, indent=4)))
-        domain_to_addresses = match_domains_to_addresses(domains_to_services, service_to_addresses)
-        logging.info('domain_to_addresses: {}'.format(json.dumps(domain_to_addresses, indent=4)))
-        if domain_to_addresses:
-            with open(DOMAIN_TO_ADDRESSES_PATH, 'w') as f:
-                json.dump(domain_to_addresses, f, indent=4, sort_keys=True)
-            for load_balancer in get_load_balancers():
-                load_balancer.update(domain_to_addresses)
-    except:
-        traceback.print_exc()
-
-
-def update():
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(levelname)s] - %(message)s')
-    now = time.time()
-    try:
-        last_update = update.last_update_time
-    except AttributeError:
-        last_update = None
-    if last_update:
-        delta = now - last_update
-        time_to_wait = 10 - delta if delta < 10 else 0
-    else:
-        time_to_wait = 0
-    update.last_update_time = now
-    time.sleep(time_to_wait)
-
-    try:
-        domains_to_services = domains.get_domains_to_services()
-        logging.info('domains_to_services: {}'.format(json.dumps(domains_to_services, indent=4)))
-        service_to_addresses = consul.Consul.discover()
-        logging.info('service_to_addresses: {}'.format(
-            json.dumps({str(k): v for k, v in service_to_addresses.items()}, indent=4)))
-        domain_to_addresses = match_domains_to_addresses(domains_to_services, service_to_addresses)
-        logging.info('domain_to_addresses: {}'.format(json.dumps(domain_to_addresses, indent=4)))
-        if domain_to_addresses:
-            with open(DOMAIN_TO_ADDRESSES_PATH, 'w') as f:
-                json.dump(domain_to_addresses, f, indent=4, sort_keys=True)
-            for load_balancer in get_load_balancers():
-                load_balancer.update(domain_to_addresses)
-    except:
-        traceback.print_exc()
-
+    logging.basicConfig(level=logging.WARNING)
+    x_consul_index = 0
+    ship_ip = common.consul._get_ship_ip()
+    while True:
+        try:
+            domains_to_services = domains.get_domains_to_services()
+            logging.info('domains_to_services: {}'.format(json.dumps(domains_to_services, indent=4)))
+            service_to_addresses = consul.Consul.discover()
+            logging.info('service_to_addresses: {}'.format(
+                json.dumps({str(k): v for k, v in service_to_addresses.items()}, indent=4)))
+            domain_to_addresses = match_domains_to_addresses(domains_to_services, service_to_addresses)
+            logging.info('domain_to_addresses: {}'.format(json.dumps(domain_to_addresses, indent=4)))
+            if domain_to_addresses:
+                with open(DOMAIN_TO_ADDRESSES_PATH, 'w') as f:
+                    json.dump(domain_to_addresses, f, indent=4, sort_keys=True)
+                for load_balancer in get_load_balancers():
+                    load_balancer.update(domain_to_addresses)
+        except:
+            traceback.print_exc()
+        start_time = time.time()
+        url = 'http://{}:8500/v1/health/state/any'.format(ship_ip)
+        payload = {'index': x_consul_index, 'wait': TIMEOUT}
+        response = requests.get(url, params=payload)
+        response.raise_for_status()
+        x_consul_index = response.headers['X-Consul-Index']
+        duration = time.time() - start_time
+        if duration < MINIMAL_INTERVAL:
+            time.sleep(MINIMAL_INTERVAL - duration)
 
 
 if __name__ == '__main__':
