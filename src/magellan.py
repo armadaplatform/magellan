@@ -22,6 +22,7 @@ DOMAIN_TO_ADDRESSES_PATH = '/tmp/domain_to_addresses.json'
 TIMEOUT = '10s'
 MINIMAL_INTERVAL = 1
 
+
 def create_named_pattern_for_wildcard(wildcard):
     if not wildcard:
         return None
