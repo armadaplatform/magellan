@@ -77,12 +77,12 @@ listen stats
 
 '''
 
-    DEFAULT_BACKEND = '''
+    DEFAULT_BACKEND_SECTION = '''
 backend backend_default
     server server_0 localhost:8080 maxconn {max_connections_service}
     http-request del-header Proxy
 
-'''.format(max_connections_service=_max_connections_service)
+'''
 
     stats_enabled = False
     stats_user = 'root'
@@ -155,7 +155,8 @@ backend backend_default
                     lines += '\tserver server_{j} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
                 lines += '\n'
             result += lines.format(**locals())
-        result += self.DEFAULT_BACKEND
+        result += self.DEFAULT_BACKEND_SECTION.format(**locals())
+
         return result
 
     def put_config(self, config):
