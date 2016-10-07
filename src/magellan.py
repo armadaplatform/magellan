@@ -56,6 +56,8 @@ def get_load_balancers():
             main_haproxies = get_matching_main_haproxies(load_balancer_config.get('env'))
             for main_haproxy in main_haproxies:
                 load_balancer = haproxy.MainHaproxy(main_haproxy)
+                haproxy_parameters = load_balancer_config.get('haproxy_parameters')
+                load_balancer.override_haproxy_parameters(haproxy_parameters)
                 stats_config = load_balancer_config.get('stats')
                 load_balancer.configure_stats(stats_config)
                 yield load_balancer

@@ -29,8 +29,8 @@ def _clean_string(s):
 
 
 class Haproxy(object):
-    MAX_CONNECTIONS_GLOBAL = 256
-    MAX_CONNECTIONS_SERVICE = 32
+    _max_connections_global = DEFAULT_MAX_CONNECTIONS_GLOBAL = 256
+    _max_connections_service = DEFAULT_MAX_CONNECTIONS_SERVICE = 32
 
     CONFIG_HEADER = r'''
 global
@@ -82,7 +82,7 @@ backend backend_default
     server server_0 localhost:8080 maxconn {max_connections_service}
     http-request del-header Proxy
 
-'''.format(max_connections_service=MAX_CONNECTIONS_SERVICE)
+'''.format(max_connections_service=_max_connections_service)
 
     stats_enabled = False
     stats_user = 'root'
@@ -112,7 +112,7 @@ backend backend_default
         )
         result = self.CONFIG_HEADER.format(
             listen_port=self.listen_port,
-            max_connections=self.MAX_CONNECTIONS_GLOBAL,
+            max_connections=self._max_connections_global,
             stats_section=stats_section,
         )
 
@@ -134,7 +134,7 @@ backend backend_default
                 lines += '\tuse_backend backend_{i}_{cleaned_host} if host_{i}\n'
             lines += '\n'
             result += lines.format(**locals())
-        max_connections_service = self.MAX_CONNECTIONS_SERVICE
+        max_connections_service = self._max_connections_service
         for i, (host, path) in enumerate(urls):
             cleaned_host = _clean_string(host)
             lines = 'backend backend_{i}_{cleaned_host}\n'
@@ -224,3 +224,8 @@ class MainHaproxy(Haproxy):
         response = requests.post(url, data=base64.b64encode(config), headers=self.get_headers())
         if response.status_code != 200:
             raise Exception('upload_config http code: {status_code}'.format(status_code=response.status_code))
+
+    def override_haproxy_parameters(self, haproxy_parameters):
+        haproxy_parameters = haproxy_parameters or {}
+        self._max_connections_global = haproxy_parameters.get('max_connections_global', self.DEFAULT_MAX_CONNECTIONS_GLOBAL)
+        self._max_connections_service = haproxy_parameters.get('max_connections_service', self.DEFAULT_MAX_CONNECTIONS_SERVICE)
