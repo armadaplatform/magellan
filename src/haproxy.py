@@ -51,6 +51,7 @@ frontend http-in
     bind *:{listen_port}
     default_backend backend_default
     http-request del-header Proxy
+    maxconn {max_connections}
 
 '''
 
