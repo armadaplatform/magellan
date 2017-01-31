@@ -99,7 +99,7 @@ def match_domains_to_services(domain_wildcard, name, env, app_id, service_to_add
 
 
 def match_domains_to_address(domain_wildcard, address):
-    result = {domain_wildcard: [address]}
+    result = {domain_wildcard: {'0': address}}
     return result
 
 
