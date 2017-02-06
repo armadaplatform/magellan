@@ -80,7 +80,7 @@ listen stats
 
     DEFAULT_BACKEND_SECTION = '''
 backend backend_default
-    server server_0 localhost:8080 maxconn {max_connections_service}
+    server server_default localhost:8080 maxconn {max_connections_service}
     http-request del-header Proxy
 
 '''
@@ -142,8 +142,8 @@ backend backend_default
             lines += '\thttp-request del-header Proxy\n'
             if path:
                 lines += '\treqirep ^([^\ ]*)\ /{path}/(.*)  \\1\ /\\2\n'
-            for j, address in enumerate(domains[i][1]):
-                lines += '\tserver server_{j} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
+            for container_id, address in sorted(domains[i][1].items()):
+                lines += '\tserver {container_id} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
                 hostname = address.split(':')[0]
                 if not _is_ip(hostname):
                     lines += '\thttp-request set-header Host {}\n'.format(address)
@@ -152,8 +152,8 @@ backend backend_default
                 lines += 'backend backend_{i}a_{cleaned_host}\n'
                 lines += '\thttp-request del-header Proxy\n'
                 lines += '\treqirep ^([^\\ ]*)\\ /{path}\\ (.*)  \\1\\ /\\ \\2\n'
-                for j, address in enumerate(domains[i][1]):
-                    lines += '\tserver server_{j} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
+                for container_id, address in sorted(domains[i][1].items()):
+                    lines += '\tserver {container_id} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
                 lines += '\n'
             result += lines.format(**locals())
         result += self.DEFAULT_BACKEND_SECTION.format(**locals())

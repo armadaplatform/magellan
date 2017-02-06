@@ -25,11 +25,11 @@ class Consul(object):
         armada_address = Consul.get_local_armada_address()
         url = 'http://{armada_address}/list'.format(**locals())
         all_services = requests.get(url).json()['result']
-        service_to_addresses = defaultdict(list)
+        service_to_addresses = defaultdict(dict)
         working_services = [service for service in all_services if service['status'] in ('passing', 'warning')]
         for service in working_services:
             service_index = (service['name'], service['tags'].get('env'), service['tags'].get('app_id'))
-            service_to_addresses[service_index].append(service['address'])
+            service_to_addresses[service_index][service['container_id']] = service['address']
         return service_to_addresses
 
     @staticmethod
