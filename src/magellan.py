@@ -13,7 +13,7 @@ from armada import hermes
 import consul
 import domains
 import haproxy
-from utils import print_err
+from utils import print_err, setup_sentry
 
 WILDCARD_PATTERN = '%(?P<variable>[^%]+)%'
 NAMED_WILDCARD_PATTERN = '(?P<\\g<variable>>[A-Za-z_][A-Za-z_\-0-9\.]+)'
@@ -122,9 +122,11 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
 
 
 def main():
+    sentry_client = setup_sentry()
     logging.basicConfig(level=logging.WARNING)
     x_consul_index = 0
     while True:
+
         x_consul_index = consul.Consul.watch_for_health_checks(x_consul_index, TIMEOUT)
         try:
             domains_to_services = domains.get_domains_to_services()
@@ -140,7 +142,9 @@ def main():
                 for load_balancer in get_load_balancers():
                     load_balancer.update(domain_to_addresses)
         except:
+            sentry_client.captureException()
             traceback.print_exc()
+
         time.sleep(MINIMAL_INTERVAL)
 
 
