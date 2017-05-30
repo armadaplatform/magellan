@@ -1,8 +1,8 @@
 import os
-
 import web
 
 import magellan
+from utils import setup_sentry
 
 
 class Health(object):
@@ -19,6 +19,8 @@ class ShowMapping(object):
 
 
 def main():
+    setup_sentry()
+
     urls = (
         '/health', Health.__name__,
         '/', ShowMapping.__name__,

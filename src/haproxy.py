@@ -2,15 +2,16 @@ from __future__ import print_function
 
 import base64
 import hashlib
-import os
 import re
 import socket
 import traceback
 
+import os
 import requests
 from armada import hermes
 
 import remote
+from utils import setup_sentry
 
 auth_config = hermes.get_config('auth_config.json', {})
 AUTHORIZATION_TOKEN = auth_config.get('main_haproxy_auth_token')
@@ -153,7 +154,8 @@ backend backend_default
                 lines += '\thttp-request del-header Proxy\n'
                 lines += '\treqirep ^([^\\ ]*)\\ /{path}\\ (.*)  \\1\\ /\\ \\2\n'
                 for container_id, address in sorted(domains[i][1].items()):
-                    lines += '\tserver {container_id} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
+                    lines += '\tserver {container_id} {address}'.format(
+                        **locals()) + ' maxconn {max_connections_service}\n'
                 lines += '\n'
             result += lines.format(**locals())
         result += self.DEFAULT_BACKEND_SECTION.format(**locals())
@@ -181,6 +183,7 @@ backend backend_default
         try:
             os.remove(self.config_path)
         except OSError:
+            setup_sentry().captureException()
             traceback.print_exc()
 
     def update(self, domains_to_addresses):
@@ -191,6 +194,7 @@ backend backend_default
                 self.put_config(new_config)
                 self.restart()
             except:
+                setup_sentry().captureException()
                 traceback.print_exc()
                 self.clear_current_config()
 
@@ -229,5 +233,7 @@ class MainHaproxy(Haproxy):
 
     def override_haproxy_parameters(self, haproxy_parameters):
         haproxy_parameters = haproxy_parameters or {}
-        self._max_connections_global = haproxy_parameters.get('max_connections_global', self.DEFAULT_MAX_CONNECTIONS_GLOBAL)
-        self._max_connections_service = haproxy_parameters.get('max_connections_service', self.DEFAULT_MAX_CONNECTIONS_SERVICE)
+        self._max_connections_global = haproxy_parameters.get('max_connections_global',
+                                                              self.DEFAULT_MAX_CONNECTIONS_GLOBAL)
+        self._max_connections_service = haproxy_parameters.get('max_connections_service',
+                                                               self.DEFAULT_MAX_CONNECTIONS_SERVICE)
