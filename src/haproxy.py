@@ -2,13 +2,15 @@ from __future__ import print_function
 
 import base64
 import hashlib
+import os
 import re
 import socket
 import traceback
 
-import os
 import requests
 from armada import hermes
+from jinja2 import Environment
+from jinja2 import FileSystemLoader
 
 import remote
 from utils import setup_sentry
@@ -26,65 +28,12 @@ def _is_ip(hostname):
 
 
 def _clean_string(s):
-    return re.sub(r'[^a-zA-Z0-9_\-\.]', '_', s)
+    return re.sub(r'[^a-zA-Z0-9_\-.]', '_', s)
 
 
 class Haproxy(object):
     _max_connections_global = DEFAULT_MAX_CONNECTIONS_GLOBAL = 256
     _max_connections_service = DEFAULT_MAX_CONNECTIONS_SERVICE = 32
-
-    CONFIG_HEADER = r'''
-global
-    daemon
-    maxconn {max_connections}
-    stats socket /var/run/haproxy/stats.sock
-
-{stats_section}
-
-defaults
-    mode http
-    timeout connect 5s
-    timeout client 300s
-    timeout server 300s
-    option http-server-close
-
-frontend http-in
-    bind *:{listen_port}
-    default_backend backend_default
-    http-request del-header Proxy
-    maxconn {max_connections}
-
-'''
-
-    STATS_SECTION = r'''
-
-listen stats
-    bind            *:8001
-    mode            http
-    log             global
-
-    maxconn 10
-
-    timeout client      100s
-    timeout server      100s
-    timeout connect     100s
-    timeout queue       100s
-
-    stats enable
-    stats hide-version
-    stats refresh 30s
-    stats show-node
-    stats auth {stats_user}:{stats_password}
-    stats uri /
-
-'''
-
-    DEFAULT_BACKEND_SECTION = '''
-backend backend_default
-    server server_default localhost:8080 maxconn {max_connections_service}
-    http-request del-header Proxy
-
-'''
 
     stats_enabled = False
     stats_user = 'root'
@@ -107,59 +56,29 @@ backend backend_default
         return host, path.strip('/')
 
     def generate_config_from_domains_to_addresses(self, domains_to_addresses):
-        stats_section = self.STATS_SECTION if self.stats_enabled else ''
-        stats_section = stats_section.format(
-            stats_user=self.stats_user,
-            stats_password=self.stats_password,
-        )
-        result = self.CONFIG_HEADER.format(
-            listen_port=self.listen_port,
-            max_connections=self._max_connections_global,
-            stats_section=stats_section,
-        )
-
         # Sort by the length of domains (descending), to ensure that entries for overlapping paths like:
         #    example.com/sub/path, example.com/sub, example.com
         # will be ordered starting from the most specific one.
         domains = list(sorted(domains_to_addresses.items(), key=lambda (domain, _): -len(domain)))
 
-        urls = [self.split_url(domain) for domain, _ in domains]
-        for i, (host, path) in enumerate(urls):
+        entries = []
+        for i, (domain, container_id_to_address) in enumerate(domains):
+            host, path = self.split_url(domain)
             cleaned_host = _clean_string(host)
-            lines = '\tacl host_{i} hdr(host) -i {host}\n'
-            if path:
-                lines += '\tacl path_{i} path_beg /{path}/\n'
-                lines += '\tuse_backend backend_{i}_{cleaned_host} if host_{i} path_{i}\n'
-                lines += '\tacl path_{i}a path /{path}\n'
-                lines += '\tuse_backend backend_{i}a_{cleaned_host} if host_{i} path_{i}a\n'
-            else:
-                lines += '\tuse_backend backend_{i}_{cleaned_host} if host_{i}\n'
-            lines += '\n'
-            result += lines.format(**locals())
-        max_connections_service = self._max_connections_service
-        for i, (host, path) in enumerate(urls):
-            cleaned_host = _clean_string(host)
-            lines = 'backend backend_{i}_{cleaned_host}\n'
-            lines += '\thttp-request del-header Proxy\n'
-            if path:
-                lines += '\treqirep ^([^\ ]*)\ /{path}/(.*)  \\1\ /\\2\n'
-            for container_id, address in sorted(domains[i][1].items()):
-                lines += '\tserver {container_id} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
-                hostname = address.split(':')[0]
-                if not _is_ip(hostname):
-                    lines += '\thttp-request set-header Host {}\n'.format(address)
-            lines += '\n'
-            if path:
-                lines += 'backend backend_{i}a_{cleaned_host}\n'
-                lines += '\thttp-request del-header Proxy\n'
-                lines += '\treqirep ^([^\\ ]*)\\ /{path}\\ (.*)  \\1\\ /\\ \\2\n'
-                for container_id, address in sorted(domains[i][1].items()):
-                    lines += '\tserver {container_id} {address}'.format(
-                        **locals()) + ' maxconn {max_connections_service}\n'
-                lines += '\n'
-            result += lines.format(**locals())
-        result += self.DEFAULT_BACKEND_SECTION.format(**locals())
+            container_ids_with_addresses = sorted(container_id_to_address.items())
+            entries.append((i, host, cleaned_host, path, container_ids_with_addresses))
 
+        j2_env = Environment(loader=FileSystemLoader(os.path.dirname(os.path.abspath(__file__))))
+        j2_env.tests['ip'] = _is_ip
+        result = j2_env.get_template('templates/haproxy.conf.jinja2').render(
+            listen_port=self.listen_port,
+            max_connections=self._max_connections_global,
+            max_connections_service=self._max_connections_service,
+            stats_enables=self.stats_enabled,
+            stats_user=self.stats_user,
+            stats_password=self.stats_password,
+            entries=entries,
+        )
         return result
 
     def put_config(self, config):

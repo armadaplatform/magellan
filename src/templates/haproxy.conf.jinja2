@@ -1,0 +1,78 @@
+global
+    daemon
+    maxconn {{ max_connections }}
+    stats socket /var/run/haproxy/stats.sock
+
+{% if stats_enabled -%}
+listen stats
+    bind *:8001
+    mode http
+    log global
+
+    maxconn 10
+
+    timeout client 100s
+    timeout server 100s
+    timeout connect 100s
+    timeout queue 100s
+
+    stats enable
+    stats hide-version
+    stats refresh 30s
+    stats show-node
+    stats auth {{ stats_user }}:{{ stats_password }}
+    stats uri /
+{%- endif %}
+
+defaults
+    mode http
+    timeout connect 5s
+    timeout client 300s
+    timeout server 300s
+    option http-server-close
+
+frontend http-in
+    bind *:{{ listen_port }}
+    default_backend backend_default
+    http-request del-header Proxy
+    maxconn {{ max_connections }}
+
+{% for i, host, cleaned_host, path, container_ids_with_addresses in entries %}
+    acl host_{{ i }} hdr(host) -i {{ host }}
+    {% if path -%}
+    acl path_{{ i }} path_beg /{{ path }}/
+    use_backend backend_{{ i }}_{{ cleaned_host }} if host_{{ i }} path_{{ i }}
+    acl path_{{ i }}a path /{{ path }}
+    use_backend backend_{{ i }}a_{{ cleaned_host }} if host_{{ i }} path_{{ i }}a
+    {% else -%}
+    use_backend backend_{{ i }}_{{ cleaned_host }} if host_{{ i }}
+    {% endif -%}
+{% endfor -%}
+
+{% for i, host, cleaned_host, path, container_ids_with_addresses in entries %}
+backend backend_{{ i }}_{{ cleaned_host }}
+    http-request del-header Proxy
+    {% if path -%}
+    reqirep ^([^\ ]*)\ /{{ path }}/(.*)  \\1\ /\\2
+    {% endif -%}
+    {% for container_id, address in container_ids_with_addresses -%}
+    server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
+    {% if not (address.split(':')[0] is ip) -%}
+    http-request set-header Host {{ address }}
+    {% endif -%}
+    {% endfor -%}
+
+{% if path -%}
+backend backend_{{ i }}a_{{ cleaned_host }}
+    http-request del-header Proxy
+    reqirep ^([^\\ ]*)\\ /{{ path }}\\ (.*)  \\1\\ /\\ \\2
+    {% for container_id, address in container_ids_with_addresses -%}
+    server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
+    {% endfor -%}
+{% endif %}
+{% endfor %}
+
+backend backend_default
+    server server_default localhost:8080 maxconn {{ max_connections_service }}
+    http-request del-header Proxy
+
