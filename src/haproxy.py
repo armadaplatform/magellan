@@ -35,14 +35,27 @@ class Haproxy(object):
     _max_connections_global = DEFAULT_MAX_CONNECTIONS_GLOBAL = 256
     _max_connections_service = DEFAULT_MAX_CONNECTIONS_SERVICE = 32
 
-    stats_enabled = False
-    stats_user = 'root'
-    stats_password = 'armada'
+    _stats_enabled = False
+    _stats_user = 'root'
+    _stats_password = 'armada'
 
     def __init__(self, load_balancer):
         self.load_balancer = load_balancer
         self.config_path = '/tmp/haproxy_{hash}.cfg'.format(hash=hashlib.md5(repr(load_balancer)).hexdigest())
         self.listen_port = 80
+
+        stats_config = self.load_balancer.get('stats') or {}
+        self._stats_enabled = stats_config.get('enabled') or self._stats_enabled
+        self._stats_user = stats_config.get('user') or self._stats_user
+        self._stats_password = stats_config.get('password') or self._stats_password
+
+        haproxy_parameters = self.load_balancer.get('haproxy_parameters') or {}
+        self._max_connections_global = haproxy_parameters.get('max_connections_global',
+                                                              self.DEFAULT_MAX_CONNECTIONS_GLOBAL)
+        self._max_connections_service = haproxy_parameters.get('max_connections_service',
+                                                               self.DEFAULT_MAX_CONNECTIONS_SERVICE)
+
+        self._restrictions = self.load_balancer.get('restrictions') or []
 
     def get_current_config(self):
         if not os.path.exists(self.config_path):
@@ -62,22 +75,30 @@ class Haproxy(object):
         domains = list(sorted(domains_to_addresses.items(), key=lambda (domain, _): -len(domain)))
 
         entries = []
-        for i, (domain, container_id_to_address) in enumerate(domains):
+        for domain, mapping in domains:
             host, path = self.split_url(domain)
-            cleaned_host = _clean_string(host)
-            container_ids_with_addresses = sorted(container_id_to_address.items())
-            entries.append((i, host, cleaned_host, path, container_ids_with_addresses))
+            container_ids_with_addresses = sorted(mapping['addresses'].items())
+            entry = {
+                'host': host,
+                'cleaned_host': _clean_string(host),
+                'path': path,
+                'container_ids_with_addresses': container_ids_with_addresses,
+                'allow_all': mapping['allow_all'],
+            }
+            entries.append(entry)
 
         j2_env = Environment(loader=FileSystemLoader(os.path.dirname(os.path.abspath(__file__))))
         j2_env.tests['ip'] = _is_ip
+
         result = j2_env.get_template('templates/haproxy.conf.jinja2').render(
             listen_port=self.listen_port,
             max_connections=self._max_connections_global,
             max_connections_service=self._max_connections_service,
-            stats_enables=self.stats_enabled,
-            stats_user=self.stats_user,
-            stats_password=self.stats_password,
+            stats_enabled=self._stats_enabled,
+            stats_user=self._stats_user,
+            stats_password=self._stats_password,
             entries=entries,
+            restrictions=self._restrictions,
         )
         return result
 
@@ -96,7 +117,7 @@ class Haproxy(object):
         remote_address = self.load_balancer['ssh']
         code, out, err = remote.execute_remote_command('sudo service haproxy reload', remote_address)
         if code != 0:
-            raise Exception('restart error: {err}'.format(err=err))
+            raise Exception('Haproxy reload error: {err}'.format(err=err))
 
     def clear_current_config(self):
         try:
@@ -117,12 +138,6 @@ class Haproxy(object):
                 traceback.print_exc()
                 self.clear_current_config()
 
-    def configure_stats(self, stats_config):
-        stats_config = stats_config or {}
-        self.stats_enabled = stats_config.get('enabled') or self.stats_enabled
-        self.stats_user = stats_config.get('user') or self.stats_user
-        self.stats_password = stats_config.get('password') or self.stats_password
-
 
 class MainHaproxy(Haproxy):
     def __init__(self, load_balancer):
@@ -135,8 +150,7 @@ class MainHaproxy(Haproxy):
     @staticmethod
     def get_headers():
         headers = {}
-        # if token was provided, let's introduce ourselves with it
-        # in case main-haproxy requires it.
+        # If token was provided, let's introduce ourselves with it in case main-haproxy requires it.
         if AUTHORIZATION_TOKEN:
             headers['Authorization'] = 'Token {}'.format(AUTHORIZATION_TOKEN)
         return headers
@@ -149,10 +163,3 @@ class MainHaproxy(Haproxy):
         response = requests.post(url, data=base64.b64encode(config), headers=self.get_headers())
         if response.status_code != 200:
             raise Exception('upload_config http code: {status_code}'.format(status_code=response.status_code))
-
-    def override_haproxy_parameters(self, haproxy_parameters):
-        haproxy_parameters = haproxy_parameters or {}
-        self._max_connections_global = haproxy_parameters.get('max_connections_global',
-                                                              self.DEFAULT_MAX_CONNECTIONS_GLOBAL)
-        self._max_connections_service = haproxy_parameters.get('max_connections_service',
-                                                               self.DEFAULT_MAX_CONNECTIONS_SERVICE)

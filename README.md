@@ -99,6 +99,45 @@ configuration directory. It should contain a json array with list of HAProxies t
 You can ask `magellan` to configure either `main-haproxy` Armada service or pure HAProxy instance. In the latter case
 providing proper SSH credentials to the server with HAProxy is required.
 
+## Restricting access
+
+With `magellan` you can also restrict access to some domains, allowing the only for defined netmasks.
+
+To do that, add section "restrictions" in `load-balancers.json` config file. E.g.:
+```json
+[
+    {
+        "type": "main-haproxy",
+        "env": "production",
+        "restrictions": [
+            {
+                "domain": ".secure.example.com",
+                "allowed": [
+                    "192.168.3.0/24",
+                    "57.58.59.60"
+                ]
+            }
+        ]
+    }
+]
+```
+
+It will restrict access to all hosts ending with ".secure.example.com", and allow access only for source IPs in
+`["192.168.3.0/24", "57.58.59.60"]`.
+
+You can also expose some of the domains behind the restricted domain, by adding `"allow_all": true` to domain
+definition. E.g.:
+```json
+{
+    "allowed.secure.example.com": {
+        "protocol": "http",
+        "service_name": "allowed",
+        "environment": "production",
+        "allow_all": true
+    }
+}
+```
+
 ### Enabling HAProxy stats
 
 Additionally you can enable HAProxy html stats (see http://tecadmin.net/how-to-configure-haproxy-statics/). It will be

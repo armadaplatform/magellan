@@ -37,39 +37,63 @@ frontend http-in
     http-request del-header Proxy
     maxconn {{ max_connections }}
 
-{% for i, host, cleaned_host, path, container_ids_with_addresses in entries %}
-    acl host_{{ i }} hdr(host) -i {{ host }}
-    {% if path -%}
-    acl path_{{ i }} path_beg /{{ path }}/
-    use_backend backend_{{ i }}_{{ cleaned_host }} if host_{{ i }} path_{{ i }}
-    acl path_{{ i }}a path /{{ path }}
-    use_backend backend_{{ i }}a_{{ cleaned_host }} if host_{{ i }} path_{{ i }}a
+{% for entry in entries %}
+    acl host_{{ loop.index }} hdr(host) -i {{ entry['host'] }}
+    {% if entry['path'] -%}
+    acl path_{{ loop.index }} path_beg /{{ entry['path'] }}/
+    acl path_{{ loop.index }}a path /{{ entry['path'] }}
+    {% if entry['allow_all'] -%}
+    acl allow_all hdr(host) -i {{ entry['host'] }} { path_beg /{{ entry['path'] }}/ or path /{{ entry['path'] }} }
+    {% endif -%}
     {% else -%}
-    use_backend backend_{{ i }}_{{ cleaned_host }} if host_{{ i }}
+    {% if entry['allow_all'] -%}
+    acl allow_all hdr(host) -i {{ entry['host'] }}
+    {% endif -%}
     {% endif -%}
 {% endfor -%}
 
-{% for i, host, cleaned_host, path, container_ids_with_addresses in entries %}
-backend backend_{{ i }}_{{ cleaned_host }}
-    http-request del-header Proxy
-    {% if path -%}
-    reqirep ^([^\ ]*)\ /{{ path }}/(.*)  \\1\ /\\2
+{% if restrictions -%}
+{% for restriction in restrictions %}
+    acl restricted_{{ loop.index }} hdr_end(host) {{ restriction['domain'] }}
+    {% if restriction.get('allowed') -%}
+    acl allowed_{{ loop.index }} src {{ ' '.join(restriction['allowed']) }}
+    http-request deny if restricted_{{ loop.index }} !allowed_{{ loop.index }} !allow_all
+    {% else -%}
+    http-request deny if restricted_{{ loop.index }} !allow_all
+    {% endif %}
+{% endfor -%}
+{%- endif %}
+
+{% for entry in entries %}
+    {% if entry['path'] -%}
+    use_backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }} if host_{{ loop.index }} path_{{ loop.index }}
+    use_backend backend_{{ loop.index }}a_{{ entry['cleaned_host'] }} if host_{{ loop.index }} path_{{ loop.index }}a
+    {% else -%}
+    use_backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }} if host_{{ loop.index }}
     {% endif -%}
-    {% for container_id, address in container_ids_with_addresses -%}
+{% endfor -%}
+
+{% for entry in entries %}
+backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }}
+    http-request del-header Proxy
+    {% if entry['path'] -%}
+    reqirep ^([^\ ]*)\ /{{ entry['path'] }}/(.*)  \1\ /\2
+    {% endif -%}
+    {% for container_id, address in entry['container_ids_with_addresses'] -%}
     server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
     {% if not (address.split(':')[0] is ip) -%}
     http-request set-header Host {{ address }}
-    {% endif -%}
-    {% endfor -%}
+    {% endif %}
+    {% endfor %}
 
-{% if path -%}
-backend backend_{{ i }}a_{{ cleaned_host }}
+{% if entry['path'] -%}
+backend backend_{{ loop.index }}a_{{ entry['cleaned_host'] }}
     http-request del-header Proxy
-    reqirep ^([^\\ ]*)\\ /{{ path }}\\ (.*)  \\1\\ /\\ \\2
-    {% for container_id, address in container_ids_with_addresses -%}
+    reqirep ^([^\ ]*)\ /{{ entry['path'] }}\ (.*)  \1\ /\ \2
+    {% for container_id, address in entry['container_ids_with_addresses'] -%}
     server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
     {% endfor -%}
-{% endif %}
+{% endif -%}
 {% endfor %}
 
 backend backend_default
