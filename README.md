@@ -99,7 +99,7 @@ configuration directory. It should contain a json array with list of HAProxies t
 You can ask `magellan` to configure either `main-haproxy` Armada service or pure HAProxy instance. In the latter case
 providing proper SSH credentials to the server with HAProxy is required.
 
-## Restricting access
+## Restricting access.
 
 With `magellan` you can also restrict access to some domains, allowing the only for defined netmasks.
 
@@ -138,7 +138,7 @@ definition. E.g.:
 }
 ```
 
-### Enabling HAProxy stats
+### Enabling HAProxy stats.
 
 Additionally you can enable HAProxy html stats (see http://tecadmin.net/how-to-configure-haproxy-statics/). It will be
 accessible as another endpoint in `main-haproxy`, registered in Armada catalog as `main-haproxy:stats` subservice.
@@ -159,7 +159,7 @@ To do that add section "stats" to load-balancer config, e.g.:
 
 `user` and `password` fields are optional. The default are `root` / `armada`.
 
-# API
+# API.
 
 Magellan provides single HTTP endpoint at its root URL (`/`).
 It returns JSON object with the list of all current mappings it is using to configure HAProxies.
