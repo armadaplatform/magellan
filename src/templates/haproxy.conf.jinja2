@@ -74,6 +74,7 @@ frontend http-in
 {%- endfor %}
 
 {% for entry in entries %}
+
 backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }}
     http-request del-header Proxy
     {%- if entry['path'] %}
@@ -87,6 +88,7 @@ backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }}
     {%- endfor %}
 
     {%- if entry['path'] %}
+
 backend backend_{{ loop.index }}a_{{ entry['cleaned_host'] }}
     http-request del-header Proxy
     reqirep ^([^\ ]*)\ /{{ entry['path'] }}\ (.*)  \1\ /\ \2
