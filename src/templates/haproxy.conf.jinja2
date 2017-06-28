@@ -37,6 +37,8 @@ frontend http-in
     http-request del-header Proxy
     maxconn {{ max_connections }}
 
+    acl allow_all always_false
+
 {% for entry in entries %}
     acl host_{{ loop.index }} hdr(host) -i {{ entry['host'] }}
     {%- if entry['path'] %}
