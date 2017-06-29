@@ -2,13 +2,15 @@ from __future__ import print_function
 
 import base64
 import hashlib
+import os
 import re
 import socket
 import traceback
 
-import os
 import requests
 from armada import hermes
+from jinja2 import Environment
+from jinja2 import FileSystemLoader
 
 import remote
 from utils import setup_sentry
@@ -26,74 +28,34 @@ def _is_ip(hostname):
 
 
 def _clean_string(s):
-    return re.sub(r'[^a-zA-Z0-9_\-\.]', '_', s)
+    return re.sub(r'[^a-zA-Z0-9_\-.]', '_', s)
 
 
 class Haproxy(object):
     _max_connections_global = DEFAULT_MAX_CONNECTIONS_GLOBAL = 256
     _max_connections_service = DEFAULT_MAX_CONNECTIONS_SERVICE = 32
 
-    CONFIG_HEADER = r'''
-global
-    daemon
-    maxconn {max_connections}
-    stats socket /var/run/haproxy/stats.sock
-
-{stats_section}
-
-defaults
-    mode http
-    timeout connect 5s
-    timeout client 300s
-    timeout server 300s
-    option http-server-close
-
-frontend http-in
-    bind *:{listen_port}
-    default_backend backend_default
-    http-request del-header Proxy
-    maxconn {max_connections}
-
-'''
-
-    STATS_SECTION = r'''
-
-listen stats
-    bind            *:8001
-    mode            http
-    log             global
-
-    maxconn 10
-
-    timeout client      100s
-    timeout server      100s
-    timeout connect     100s
-    timeout queue       100s
-
-    stats enable
-    stats hide-version
-    stats refresh 30s
-    stats show-node
-    stats auth {stats_user}:{stats_password}
-    stats uri /
-
-'''
-
-    DEFAULT_BACKEND_SECTION = '''
-backend backend_default
-    server server_default localhost:8080 maxconn {max_connections_service}
-    http-request del-header Proxy
-
-'''
-
-    stats_enabled = False
-    stats_user = 'root'
-    stats_password = 'armada'
+    _stats_enabled = False
+    _stats_user = 'root'
+    _stats_password = 'armada'
 
     def __init__(self, load_balancer):
         self.load_balancer = load_balancer
         self.config_path = '/tmp/haproxy_{hash}.cfg'.format(hash=hashlib.md5(repr(load_balancer)).hexdigest())
         self.listen_port = 80
+
+        stats_config = self.load_balancer.get('stats') or {}
+        self._stats_enabled = stats_config.get('enabled') or self._stats_enabled
+        self._stats_user = stats_config.get('user') or self._stats_user
+        self._stats_password = stats_config.get('password') or self._stats_password
+
+        haproxy_parameters = self.load_balancer.get('haproxy_parameters') or {}
+        self._max_connections_global = haproxy_parameters.get('max_connections_global',
+                                                              self.DEFAULT_MAX_CONNECTIONS_GLOBAL)
+        self._max_connections_service = haproxy_parameters.get('max_connections_service',
+                                                               self.DEFAULT_MAX_CONNECTIONS_SERVICE)
+
+        self._restrictions = self.load_balancer.get('restrictions') or []
 
     def get_current_config(self):
         if not os.path.exists(self.config_path):
@@ -107,59 +69,37 @@ backend backend_default
         return host, path.strip('/')
 
     def generate_config_from_domains_to_addresses(self, domains_to_addresses):
-        stats_section = self.STATS_SECTION if self.stats_enabled else ''
-        stats_section = stats_section.format(
-            stats_user=self.stats_user,
-            stats_password=self.stats_password,
-        )
-        result = self.CONFIG_HEADER.format(
-            listen_port=self.listen_port,
-            max_connections=self._max_connections_global,
-            stats_section=stats_section,
-        )
-
         # Sort by the length of domains (descending), to ensure that entries for overlapping paths like:
         #    example.com/sub/path, example.com/sub, example.com
         # will be ordered starting from the most specific one.
         domains = list(sorted(domains_to_addresses.items(), key=lambda (domain, _): -len(domain)))
 
-        urls = [self.split_url(domain) for domain, _ in domains]
-        for i, (host, path) in enumerate(urls):
-            cleaned_host = _clean_string(host)
-            lines = '\tacl host_{i} hdr(host) -i {host}\n'
-            if path:
-                lines += '\tacl path_{i} path_beg /{path}/\n'
-                lines += '\tuse_backend backend_{i}_{cleaned_host} if host_{i} path_{i}\n'
-                lines += '\tacl path_{i}a path /{path}\n'
-                lines += '\tuse_backend backend_{i}a_{cleaned_host} if host_{i} path_{i}a\n'
-            else:
-                lines += '\tuse_backend backend_{i}_{cleaned_host} if host_{i}\n'
-            lines += '\n'
-            result += lines.format(**locals())
-        max_connections_service = self._max_connections_service
-        for i, (host, path) in enumerate(urls):
-            cleaned_host = _clean_string(host)
-            lines = 'backend backend_{i}_{cleaned_host}\n'
-            lines += '\thttp-request del-header Proxy\n'
-            if path:
-                lines += '\treqirep ^([^\ ]*)\ /{path}/(.*)  \\1\ /\\2\n'
-            for container_id, address in sorted(domains[i][1].items()):
-                lines += '\tserver {container_id} {address}'.format(**locals()) + ' maxconn {max_connections_service}\n'
-                hostname = address.split(':')[0]
-                if not _is_ip(hostname):
-                    lines += '\thttp-request set-header Host {}\n'.format(address)
-            lines += '\n'
-            if path:
-                lines += 'backend backend_{i}a_{cleaned_host}\n'
-                lines += '\thttp-request del-header Proxy\n'
-                lines += '\treqirep ^([^\\ ]*)\\ /{path}\\ (.*)  \\1\\ /\\ \\2\n'
-                for container_id, address in sorted(domains[i][1].items()):
-                    lines += '\tserver {container_id} {address}'.format(
-                        **locals()) + ' maxconn {max_connections_service}\n'
-                lines += '\n'
-            result += lines.format(**locals())
-        result += self.DEFAULT_BACKEND_SECTION.format(**locals())
+        entries = []
+        for domain, mapping in domains:
+            host, path = self.split_url(domain)
+            container_ids_with_addresses = sorted(mapping['addresses'].items())
+            entry = {
+                'host': host,
+                'cleaned_host': _clean_string(host),
+                'path': path,
+                'container_ids_with_addresses': container_ids_with_addresses,
+                'allow_all': mapping['allow_all'],
+            }
+            entries.append(entry)
 
+        j2_env = Environment(loader=FileSystemLoader(os.path.dirname(os.path.abspath(__file__))))
+        j2_env.tests['ip'] = _is_ip
+
+        result = j2_env.get_template('templates/haproxy.conf.jinja2').render(
+            listen_port=self.listen_port,
+            max_connections=self._max_connections_global,
+            max_connections_service=self._max_connections_service,
+            stats_enabled=self._stats_enabled,
+            stats_user=self._stats_user,
+            stats_password=self._stats_password,
+            entries=entries,
+            restrictions=self._restrictions,
+        )
         return result
 
     def put_config(self, config):
@@ -177,7 +117,7 @@ backend backend_default
         remote_address = self.load_balancer['ssh']
         code, out, err = remote.execute_remote_command('sudo service haproxy reload', remote_address)
         if code != 0:
-            raise Exception('restart error: {err}'.format(err=err))
+            raise Exception('Haproxy reload error: {err}'.format(err=err))
 
     def clear_current_config(self):
         try:
@@ -198,12 +138,6 @@ backend backend_default
                 traceback.print_exc()
                 self.clear_current_config()
 
-    def configure_stats(self, stats_config):
-        stats_config = stats_config or {}
-        self.stats_enabled = stats_config.get('enabled') or self.stats_enabled
-        self.stats_user = stats_config.get('user') or self.stats_user
-        self.stats_password = stats_config.get('password') or self.stats_password
-
 
 class MainHaproxy(Haproxy):
     def __init__(self, load_balancer):
@@ -216,8 +150,7 @@ class MainHaproxy(Haproxy):
     @staticmethod
     def get_headers():
         headers = {}
-        # if token was provided, let's introduce ourselves with it
-        # in case main-haproxy requires it.
+        # If token was provided, let's introduce ourselves with it in case main-haproxy requires it.
         if AUTHORIZATION_TOKEN:
             headers['Authorization'] = 'Token {}'.format(AUTHORIZATION_TOKEN)
         return headers
@@ -230,10 +163,3 @@ class MainHaproxy(Haproxy):
         response = requests.post(url, data=base64.b64encode(config), headers=self.get_headers())
         if response.status_code != 200:
             raise Exception('upload_config http code: {status_code}'.format(status_code=response.status_code))
-
-    def override_haproxy_parameters(self, haproxy_parameters):
-        haproxy_parameters = haproxy_parameters or {}
-        self._max_connections_global = haproxy_parameters.get('max_connections_global',
-                                                              self.DEFAULT_MAX_CONNECTIONS_GLOBAL)
-        self._max_connections_service = haproxy_parameters.get('max_connections_service',
-                                                               self.DEFAULT_MAX_CONNECTIONS_SERVICE)

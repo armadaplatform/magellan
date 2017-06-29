@@ -1,0 +1,107 @@
+global
+    daemon
+    maxconn {{ max_connections }}
+    stats socket /var/run/haproxy/stats.sock
+
+{% if stats_enabled %}
+listen stats
+    bind *:8001
+    mode http
+    log global
+
+    maxconn 10
+
+    timeout client 100s
+    timeout server 100s
+    timeout connect 100s
+    timeout queue 100s
+
+    stats enable
+    stats hide-version
+    stats refresh 30s
+    stats show-node
+    stats auth {{ stats_user }}:{{ stats_password }}
+    stats uri /
+{%- endif %}
+
+defaults
+    mode http
+    timeout connect 5s
+    timeout client 300s
+    timeout server 300s
+    option http-server-close
+
+frontend http-in
+    bind *:{{ listen_port }}
+    default_backend backend_default
+    http-request del-header Proxy
+    maxconn {{ max_connections }}
+
+    acl allow_all always_false
+
+{% for entry in entries %}
+    acl host_{{ loop.index }} hdr(host) -i {{ entry['host'] }}
+    {%- if entry['path'] %}
+    acl path_{{ loop.index }} path_beg /{{ entry['path'] }}/
+    acl path_{{ loop.index }}a path /{{ entry['path'] }}
+        {%- if entry['allow_all'] %}
+    acl allow_all hdr(host) -i {{ entry['host'] }} { path_beg /{{ entry['path'] }}/ or path /{{ entry['path'] }} }
+        {%- endif %}
+    {%- else %}
+        {%- if entry['allow_all'] %}
+    acl allow_all hdr(host) -i {{ entry['host'] }}
+        {%- endif %}
+    {%- endif %}
+{%- endfor %}
+
+{% if restrictions %}
+    {%- for restriction in restrictions %}
+    acl restricted_{{ loop.index }} hdr_end(host) {{ restriction['domain'] }}
+        {%- if restriction.get('allowed_request_ip') %}
+    acl allowed_src_{{ loop.index }} src {{ ' '.join(restriction['allowed_request_ip']) }}
+        {%- endif %}
+        {%- if restriction.get('allowed_x-forwarded-for') %}
+    acl allowed_xff_{{ loop.index }} hdr_ip(X-Forwarded-For) {{ ' '.join(restriction['allowed_x-forwarded-for']) }}
+        {%- endif %}
+    http-request deny if restricted_{{ loop.index }} {% if restriction.get('allowed_request_ip') %}!allowed_src_{{ loop.index }}{% endif %} {% if restriction.get('allowed_x-forwarded-for') %}!allowed_xff_{{ loop.index }}{% endif %} !allow_all
+    {%- endfor %}
+{%- endif %}
+
+{% for entry in entries %}
+    {%- if entry['path'] %}
+    use_backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }} if host_{{ loop.index }} path_{{ loop.index }}
+    use_backend backend_{{ loop.index }}a_{{ entry['cleaned_host'] }} if host_{{ loop.index }} path_{{ loop.index }}a
+    {%- else %}
+    use_backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }} if host_{{ loop.index }}
+    {%- endif %}
+{%- endfor %}
+
+{% for entry in entries %}
+
+backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }}
+    http-request del-header Proxy
+    {%- if entry['path'] %}
+    reqirep ^([^\ ]*)\ /{{ entry['path'] }}/(.*)  \1\ /\2
+    {%- endif %}
+    {%- for container_id, address in entry['container_ids_with_addresses'] %}
+    server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
+        {%- if not (address.split(':')[0] is ip) %}
+    http-request set-header Host {{ address }}
+        {%- endif %}
+    {%- endfor %}
+
+    {%- if entry['path'] %}
+
+backend backend_{{ loop.index }}a_{{ entry['cleaned_host'] }}
+    http-request del-header Proxy
+    reqirep ^([^\ ]*)\ /{{ entry['path'] }}\ (.*)  \1\ /\ \2
+        {%- for container_id, address in entry['container_ids_with_addresses'] %}
+    server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
+        {%- endfor %}
+    {%- endif %}
+{%- endfor %}
+
+backend backend_default
+    server server_default localhost:8080 maxconn {{ max_connections_service }}
+    http-request del-header Proxy
+

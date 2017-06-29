@@ -49,17 +49,12 @@ def get_load_balancers():
         load_balancer_type = load_balancer_config['type']
         if load_balancer_type == 'haproxy':
             load_balancer = haproxy.Haproxy(load_balancer_config)
-            stats_config = load_balancer_config.get('stats')
-            load_balancer.configure_stats(stats_config)
             yield load_balancer
         elif load_balancer_type == 'main-haproxy':
             main_haproxies = get_matching_main_haproxies(load_balancer_config.get('env'))
             for main_haproxy in main_haproxies:
-                load_balancer = haproxy.MainHaproxy(main_haproxy)
-                haproxy_parameters = load_balancer_config.get('haproxy_parameters')
-                load_balancer.override_haproxy_parameters(haproxy_parameters)
-                stats_config = load_balancer_config.get('stats')
-                load_balancer.configure_stats(stats_config)
+                load_balancer_config.update(main_haproxy)
+                load_balancer = haproxy.MainHaproxy(load_balancer_config)
                 yield load_balancer
         else:
             print_err("Unknown load-balancer type: {load_balancer_type}".format(**locals()))
@@ -109,6 +104,7 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
         if service_definition.get('protocol') != 'http':
             continue
         address = service_definition.get('address')
+        allow_all = service_definition.get('allow_all') is True
         if address:
             mapping = match_domains_to_address(domain_wildcard, address)
         else:
@@ -116,6 +112,11 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
             env = service_definition.get('environment')
             app_id = service_definition.get('app_id')
             mapping = match_domains_to_services(domain_wildcard, name, env, app_id, service_to_addresses)
+        for domain, addresses in mapping.items():
+            mapping[domain] = {
+                'addresses': addresses,
+                'allow_all': allow_all,
+            }
         result.update(mapping)
 
     return result
