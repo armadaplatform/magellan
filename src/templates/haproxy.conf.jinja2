@@ -36,6 +36,10 @@ frontend http-in
     default_backend backend_default
     http-request del-header Proxy
     maxconn {{ max_connections }}
+    http-request add-header X-Src %[src]
+    http-request add-header X-For %[req.fhdr(X-Forwarded-For)]
+    http-request add-header X-For-Last %[req.hdr(X-Forwarded-For)]
+    http-request add-header X-For-Ip %[req.hdr_ip(X-Forwarded-For)]
 
     acl allow_all always_false
 
@@ -57,12 +61,13 @@ frontend http-in
 {% if restrictions %}
     {%- for restriction in restrictions %}
     acl restricted_{{ loop.index }} hdr_end(host) {{ restriction['domain'] }}
-        {%- if restriction.get('allowed') %}
-    acl allowed_{{ loop.index }} src {{ ' '.join(restriction['allowed']) }}
-    http-request deny if restricted_{{ loop.index }} !allowed_{{ loop.index }} !allow_all
-        {%- else %}
-    http-request deny if restricted_{{ loop.index }} !allow_all
+        {%- if restriction.get('allowed_src') %}
+    acl allowed_src_{{ loop.index }} src {{ ' '.join(restriction['allowed_src']) }}
         {%- endif %}
+        {%- if restriction.get('allowed_xff') %}
+    acl allowed_xff_{{ loop.index }} hdr_ip(X-Forwarded-For) {{ ' '.join(restriction['allowed_xff']) }}
+        {%- endif %}
+    http-request deny if restricted_{{ loop.index }} {% if restriction.get('allowed_src') %}!allowed_src_{{ loop.index }}{% endif %} {% if restriction.get('allowed_xff') %}!allowed_xff_{{ loop.index }}{% endif %} !allow_all
     {%- endfor %}
 {%- endif %}
 
