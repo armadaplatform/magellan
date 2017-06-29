@@ -36,10 +36,6 @@ frontend http-in
     default_backend backend_default
     http-request del-header Proxy
     maxconn {{ max_connections }}
-    http-request add-header X-Src %[src]
-    http-request add-header X-For %[req.fhdr(X-Forwarded-For)]
-    http-request add-header X-For-Last %[req.hdr(X-Forwarded-For)]
-    http-request add-header X-For-Ip %[req.hdr_ip(X-Forwarded-For)]
 
     acl allow_all always_false
 
