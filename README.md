@@ -119,7 +119,7 @@ To do that, add section "restrictions" in `load-balancers.json` config file. E.g
             },
             {
                 "domain": ".lb.example.com",
-                "allowed_X-Forwarded-For": [
+                "allowed_x-forwarded-for": [
                     "192.168.3.0/24",
                     "57.58.59.60"
                 ]
@@ -133,7 +133,7 @@ It will restrict access to all hosts ending with ".secure.example.com", and allo
 (`src` ACL in HAProxy) in `allowed_request_ip` section: `["192.168.3.0/24", "57.58.59.60"]`.
 
 When your domain, let's say ".lb.example.com", is behind another load-balancer, e.g. ELB, the source IP received by
-HAProxy will be the load-balancer's IP, which may be useless. In that case, use `allowed_X-Forwarded-For` section. It
+HAProxy will be the load-balancer's IP, which may be useless. In that case, use `allowed_x-forwarded-for` section. It
 will match the IPs against the last IP in `X-Forwarded-For` HTTP header (`hdr_ip(X-Forwarded-For)` ACL in HAProxy),
 which should be the client's IP.
 

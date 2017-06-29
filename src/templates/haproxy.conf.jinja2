@@ -60,10 +60,10 @@ frontend http-in
         {%- if restriction.get('allowed_request_ip') %}
     acl allowed_src_{{ loop.index }} src {{ ' '.join(restriction['allowed_request_ip']) }}
         {%- endif %}
-        {%- if restriction.get('allowed_X-Forwarded-For') %}
-    acl allowed_xff_{{ loop.index }} hdr_ip(X-Forwarded-For) {{ ' '.join(restriction['allowed_X-Forwarded-For']) }}
+        {%- if restriction.get('allowed_x-forwarded-for') %}
+    acl allowed_xff_{{ loop.index }} hdr_ip(X-Forwarded-For) {{ ' '.join(restriction['allowed_x-forwarded-for']) }}
         {%- endif %}
-    http-request deny if restricted_{{ loop.index }} {% if restriction.get('allowed_request_ip') %}!allowed_src_{{ loop.index }}{% endif %} {% if restriction.get('allowed_X-Forwarded-For') %}!allowed_xff_{{ loop.index }}{% endif %} !allow_all
+    http-request deny if restricted_{{ loop.index }} {% if restriction.get('allowed_request_ip') %}!allowed_src_{{ loop.index }}{% endif %} {% if restriction.get('allowed_x-forwarded-for') %}!allowed_xff_{{ loop.index }}{% endif %} !allow_all
     {%- endfor %}
 {%- endif %}
 
