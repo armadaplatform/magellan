@@ -57,13 +57,13 @@ frontend http-in
 {% if restrictions %}
     {%- for restriction in restrictions %}
     acl restricted_{{ loop.index }} hdr_end(host) {{ restriction['domain'] }}
-        {%- if restriction.get('allowed_src') %}
-    acl allowed_src_{{ loop.index }} src {{ ' '.join(restriction['allowed_src']) }}
+        {%- if restriction.get('allowed_request_ip') %}
+    acl allowed_src_{{ loop.index }} src {{ ' '.join(restriction['allowed_request_ip']) }}
         {%- endif %}
-        {%- if restriction.get('allowed_xff') %}
-    acl allowed_xff_{{ loop.index }} hdr_ip(X-Forwarded-For) {{ ' '.join(restriction['allowed_xff']) }}
+        {%- if restriction.get('allowed_X-Forwarded-For') %}
+    acl allowed_xff_{{ loop.index }} hdr_ip(X-Forwarded-For) {{ ' '.join(restriction['allowed_X-Forwarded-For']) }}
         {%- endif %}
-    http-request deny if restricted_{{ loop.index }} {% if restriction.get('allowed_src') %}!allowed_src_{{ loop.index }}{% endif %} {% if restriction.get('allowed_xff') %}!allowed_xff_{{ loop.index }}{% endif %} !allow_all
+    http-request deny if restricted_{{ loop.index }} {% if restriction.get('allowed_request_ip') %}!allowed_src_{{ loop.index }}{% endif %} {% if restriction.get('allowed_X-Forwarded-For') %}!allowed_xff_{{ loop.index }}{% endif %} !allow_all
     {%- endfor %}
 {%- endif %}
 
