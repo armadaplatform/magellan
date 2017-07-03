@@ -30,6 +30,7 @@ defaults
     timeout client 300s
     timeout server 300s
     option http-server-close
+    option forwardfor except 127.0.0.1
 
 frontend http-in
     bind *:{{ listen_port }}
