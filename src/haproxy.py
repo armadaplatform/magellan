@@ -56,6 +56,11 @@ class Haproxy(object):
                                                                self.DEFAULT_MAX_CONNECTIONS_SERVICE)
 
         self._restrictions = self.load_balancer.get('restrictions') or []
+        for restriction in self._restrictions:
+            if isinstance(restriction['domain'], list):
+                restriction['domains'] = restriction['domain']
+            else:
+                restriction['domains'] = [restriction['domain']]
 
     def get_current_config(self):
         if not os.path.exists(self.config_path):

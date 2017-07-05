@@ -118,7 +118,7 @@ To do that, add section "restrictions" in `load-balancers.json` config file. E.g
                 ]
             },
             {
-                "domain": ".lb.example.com",
+                "domain": [".lb.example.com", ".lb2.example.com"],
                 "allowed_x-forwarded-for": [
                     "192.168.3.0/24",
                     "57.58.59.60"

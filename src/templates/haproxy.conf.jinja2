@@ -57,7 +57,10 @@ frontend http-in
 
 {% if restrictions %}
     {%- for restriction in restrictions %}
-    acl restricted_{{ loop.index }} hdr_end(host) {{ restriction['domain'] }}
+        {% set outer_loop = loop %}
+        {%- for domain in restriction['domains'] %}
+    acl restricted_{{ outer_loop.index }} hdr_end(host) {{ domain }}
+        {%- endfor %}
         {%- if restriction.get('allowed_request_ip') %}
     acl allowed_src_{{ loop.index }} src {{ ' '.join(restriction['allowed_request_ip']) }}
         {%- endif %}
