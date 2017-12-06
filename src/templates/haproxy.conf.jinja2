@@ -38,6 +38,18 @@ frontend http-in
     http-request del-header Proxy
     maxconn {{ max_connections }}
 
+{% if throttling_enabled %}
+    stick-table type ip size 100k expire 30s store conn_rate({{ throttling_rate }})
+    acl throttle src_conn_rate ge {{ throttling_threshold }}
+    tcp-request connection track-sc1 src
+
+    # tcp-request connection reject if throttle
+
+    tcp-request inspect-delay {{ throttling_delay }}
+    tcp-request content accept unless throttle
+    tcp-request content accept if WAIT_END
+{%- endif %}
+
     acl allow_all always_false
 
 {% for entry in entries %}
