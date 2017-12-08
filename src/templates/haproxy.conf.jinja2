@@ -35,21 +35,15 @@ defaults
 frontend http-in
     bind *:{{ listen_port }}
     default_backend backend_default
-    http-request del-header Proxy
     maxconn {{ max_connections }}
 
 {% if throttling_enabled %}
-    stick-table type ip size 100k expire 30s store conn_rate({{ throttling_rate }})
-    acl throttle src_conn_rate ge {{ throttling_threshold }}
+    stick-table type ip size 200k expire {{ throttling_rate }} store conn_rate({{ throttling_rate }})
+    acl throttle src_conn_rate gt {{ throttling_threshold }}
     tcp-request connection track-sc1 src
-
-    # tcp-request connection reject if throttle
-
-    tcp-request inspect-delay {{ throttling_delay }}
-    tcp-request content accept unless throttle
-    tcp-request content accept if WAIT_END
 {%- endif %}
 
+    http-request del-header Proxy
     acl allow_all always_false
 
 {% for entry in entries %}
@@ -83,6 +77,10 @@ frontend http-in
     {%- endfor %}
 {%- endif %}
 
+{% if throttling_enabled %}
+    use_backend backend_throttle if throttle
+{%- endif %}
+
 {% for entry in entries %}
     {%- if entry['path'] %}
     use_backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }} if host_{{ loop.index }} path_{{ loop.index }}
@@ -95,7 +93,6 @@ frontend http-in
 {% for entry in entries %}
 
 backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }}
-    http-request del-header Proxy
     {%- if entry['path'] %}
     reqirep ^([^\ ]*)\ /{{ entry['path'] }}/(.*)  \1\ /\2
     {%- endif %}
@@ -109,7 +106,6 @@ backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }}
     {%- if entry['path'] %}
 
 backend backend_{{ loop.index }}a_{{ entry['cleaned_host'] }}
-    http-request del-header Proxy
     reqirep ^([^\ ]*)\ /{{ entry['path'] }}\ (.*)  \1\ /\ \2
         {%- for container_id, address in entry['container_ids_with_addresses'] %}
     server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
@@ -117,7 +113,9 @@ backend backend_{{ loop.index }}a_{{ entry['cleaned_host'] }}
     {%- endif %}
 {%- endfor %}
 
+backend backend_throttle
+    errorfile 503 /etc/haproxy/errors/429.http
+
 backend backend_default
     server server_default localhost:8080 maxconn {{ max_connections_service }}
-    http-request del-header Proxy
 

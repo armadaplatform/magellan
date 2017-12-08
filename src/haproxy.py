@@ -40,9 +40,8 @@ class Haproxy(object):
     _stats_password = 'armada'
 
     _throttling_enabled = False
-    _throttling_rate = '3s'
-    _throttling_threshold = '20'
-    _throttling_delay = '700ms'
+    _throttling_rate = None
+    _throttling_threshold = None
 
     def __init__(self, load_balancer):
         self.load_balancer = load_balancer
@@ -55,10 +54,10 @@ class Haproxy(object):
         self._stats_password = stats_config.get('password') or self._stats_password
 
         throttling = self.load_balancer.get('throttling') or {}
-        self._throttling_enabled = bool(throttling)
-        self._throttling_rate = throttling.get('rate') or self._throttling_rate
-        self._throttling_threshold = throttling.get('threshold') or self._throttling_threshold
-        self._throttling_delay = throttling.get('delay') or self._throttling_delay
+        if throttling:
+            self._throttling_enabled = True
+            self._throttling_rate = throttling['rate']
+            self._throttling_threshold = throttling.get['threshold']
 
         haproxy_parameters = self.load_balancer.get('haproxy_parameters') or {}
         self._max_connections_global = haproxy_parameters.get('max_connections_global',
@@ -116,7 +115,6 @@ class Haproxy(object):
             throttling_enabled=self._throttling_enabled,
             throttling_rate=self._throttling_rate,
             throttling_threshold=self._throttling_threshold,
-            throttling_delay=self._throttling_delay,
             entries=entries,
             restrictions=self._restrictions,
         )
