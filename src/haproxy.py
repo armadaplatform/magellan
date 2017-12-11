@@ -57,7 +57,7 @@ class Haproxy(object):
         if throttling:
             self._throttling_enabled = True
             self._throttling_rate = throttling['rate']
-            self._throttling_threshold = throttling.get['threshold']
+            self._throttling_threshold = throttling['threshold']
 
         haproxy_parameters = self.load_balancer.get('haproxy_parameters') or {}
         self._max_connections_global = haproxy_parameters.get('max_connections_global',
