@@ -42,6 +42,8 @@ class Haproxy(object):
     _throttling_enabled = False
     _throttling_rate = None
     _throttling_threshold = None
+    _throttling_whitelist_xff = None
+    _throttling_whitelist_src = None
 
     def __init__(self, load_balancer):
         self.load_balancer = load_balancer
@@ -53,11 +55,13 @@ class Haproxy(object):
         self._stats_user = stats_config.get('user') or self._stats_user
         self._stats_password = stats_config.get('password') or self._stats_password
 
-        throttling = self.load_balancer.get('throttling') or {}
+        throttling = self.load_balancer.get('throttling')
         if throttling:
             self._throttling_enabled = True
             self._throttling_rate = throttling['rate']
             self._throttling_threshold = throttling['threshold']
+            self._throttling_whitelist_xff = throttling.get('whitelist_x-forwarded-for')
+            self._throttling_whitelist_src = throttling.get('whitelist_request_ip')
 
         haproxy_parameters = self.load_balancer.get('haproxy_parameters') or {}
         self._max_connections_global = haproxy_parameters.get('max_connections_global',
@@ -115,6 +119,8 @@ class Haproxy(object):
             throttling_enabled=self._throttling_enabled,
             throttling_rate=self._throttling_rate,
             throttling_threshold=self._throttling_threshold,
+            throttling_whitelist_xff=self._throttling_whitelist_xff,
+            throttling_whitelist_src=self._throttling_whitelist_src,
             entries=entries,
             restrictions=self._restrictions,
         )

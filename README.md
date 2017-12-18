@@ -150,6 +150,38 @@ definition. E.g.:
 }
 ```
 
+## Throttling.
+
+`magellan` supports throttling of connections in case when there are too many connections coming from the same IP in
+    given period. If limit has been reached, main-haproxy, that was configured by magellan, will return HTTP code
+    `429 Too Many Requests`.
+
+To enable throttling, add section "throttling" in `load-balancers.json` config file. E.g.:
+```json
+[
+    {
+        "type": "main-haproxy",
+        "env": "production",
+        "throttling": {
+            "rate": "5s",
+            "threshold": 10000,
+            "whitelist_request_ip": [
+                "10.0.0.0/8",
+                "172.16.0.0/12",
+                "192.168.0.0/16"
+            ]
+        }
+    }
+]
+```
+
+It will throttle connections, when there were more than 10000 requests coming from the same IP, during last 5s, unless
+    client came from whitelisted IP.
+
+If your main-haproxy is behind other load-balancer, you should add `whitelist_x-forwarded-for` section instead,
+    similarly as in restrictions.
+
+
 ### Enabling HAProxy stats.
 
 Additionally you can enable HAProxy html stats (see http://tecadmin.net/how-to-configure-haproxy-statics/). It will be

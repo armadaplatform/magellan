@@ -39,8 +39,14 @@ frontend http-in
 
 {% if throttling_enabled %}
     stick-table type ip size 200k expire {{ throttling_rate }} store conn_rate({{ throttling_rate }})
-    acl throttle src_conn_rate gt {{ throttling_threshold }}
+    acl throttling src_conn_rate gt {{ throttling_threshold }}
     tcp-request connection track-sc1 src
+    {% if throttling_whitelist_xff %}
+        acl throttling_whitelist_xff hdr_ip(X-Forwarded-For) {{ ' '.join(throttling_whitelist_xff) }}
+    {%- endif %}
+    {% if throttling_whitelist_src %}
+        acl throttling_whitelist_src src {{ ' '.join(throttling_whitelist_src) }}
+    {%- endif %}
 {%- endif %}
 
     http-request del-header Proxy
@@ -78,7 +84,7 @@ frontend http-in
 {%- endif %}
 
 {% if throttling_enabled %}
-    use_backend backend_throttle if throttle
+    use_backend backend_throttling if throttling {% if throttling_whitelist_xff %} !throttling_whitelist_xff {% endif %} {% if throttling_whitelist_src %} !throttling_whitelist_src {% endif %}
 {%- endif %}
 
 {% for entry in entries %}
@@ -113,7 +119,7 @@ backend backend_{{ loop.index }}a_{{ entry['cleaned_host'] }}
     {%- endif %}
 {%- endfor %}
 
-backend backend_throttle
+backend backend_throttling
     errorfile 503 /etc/haproxy/errors/429.http
 
 backend backend_default
