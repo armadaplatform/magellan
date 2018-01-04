@@ -123,5 +123,5 @@ backend backend_throttling
     errorfile 503 /etc/haproxy/errors/429.http
 
 backend backend_default
-    server server_default localhost:8080 maxconn {{ max_connections_service }}
+    server server_default 127.0.0.1:8080 maxconn {{ max_connections_service }}
 
