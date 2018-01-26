@@ -1,20 +1,17 @@
 from __future__ import print_function
 
-import sys
 from collections import defaultdict
 
 import requests
-
-sys.path.append('/opt/microservice/src')
-import common.consul
-import common.docker_client
+from microservice.common import consul
+from microservice.common import docker_client
 
 
 class Consul(object):
     @staticmethod
     def get_local_armada_address():
-        local_services_dict = common.consul.consul_query('agent/services')
-        ship_ip = common.docker_client.get_ship_ip()
+        local_services_dict = consul.consul_query('agent/services')
+        ship_ip = docker_client.get_ship_ip()
         for service in local_services_dict.values():
             if service['Service'] == 'armada':
                 return '{}:{}'.format(ship_ip, service['Port'])
@@ -34,7 +31,7 @@ class Consul(object):
 
     @staticmethod
     def watch_for_health_checks(x_consul_index, wait):
-        consul_url = common.consul.get_consul_url()
+        consul_url = consul.get_consul_url()
         url = '{}health/state/any'.format(consul_url)
         payload = {'index': x_consul_index, 'wait': wait}
         response = requests.get(url, params=payload)
