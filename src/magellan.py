@@ -105,6 +105,7 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
             continue
         address = service_definition.get('address')
         allow_all = service_definition.get('allow_all') is True
+        header_host = service_definition.get('header_host')
         if address:
             mapping = match_domains_to_address(domain_wildcard, address)
         else:
@@ -117,6 +118,8 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
                 'addresses': addresses,
                 'allow_all': allow_all,
             }
+            if header_host:
+                mapping[domain]['header_host'] = header_host
         result.update(mapping)
 
     return result
