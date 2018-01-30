@@ -104,7 +104,9 @@ backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }}
     {%- endif %}
     {%- for container_id, address in entry['container_ids_with_addresses'] %}
     server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
-        {%- if not (address.split(':')[0] is ip) %}
+        {%- if entry['header_host'] %}
+    http-request set-header Host {{ entry['header_host'] }}
+        {%- elif not (address.split(':')[0] is ip) %}
     http-request set-header Host {{ address }}
         {%- endif %}
     {%- endfor %}

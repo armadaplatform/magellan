@@ -100,6 +100,7 @@ class Haproxy(object):
             entry = {
                 'host': host,
                 'cleaned_host': _clean_string(host),
+                'header_host': mapping.get('header_host'),
                 'path': path,
                 'container_ids_with_addresses': container_ids_with_addresses,
                 'allow_all': mapping['allow_all'],

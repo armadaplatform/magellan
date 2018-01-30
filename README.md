@@ -29,6 +29,11 @@ and contain list of json objects like the one below:
         "dashboard.initech.com": {
             "protocol": "http",
             "address": "server2.internal-initech.com:8080"
+        },
+        "jenkins.initech.com": {
+            "protocol": "http",
+            "address": "server3.internal-initech.com:9100",
+            "header_host": "jenkins.initech.com"
         }
     }
 
@@ -40,6 +45,8 @@ and contain list of json objects like the one below:
         If environment/app_id is not supplied, `magellan` will look only for services with no environment/app_id set.
 
     * `address` - Address to which the domain will be pointed to. If provided, it will override service_name/environment/app_id.
+    * `header_host` - Optional field, for overriding HTTP header "Host", that will be sent to the server. By default,
+        it's the destination address, or the name of the created domain if the destination address is an IP.
 
 Here, requests to two domains (`badguys.initech.com` and `www.badguys.initech.com`) will be redirected to the main endpoint
 of service `badguys-finder` run with environment `production-office`.
