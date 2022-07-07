@@ -47,7 +47,7 @@ class Haproxy(object):
 
     def __init__(self, load_balancer):
         self.load_balancer = load_balancer
-        self.config_path = '/tmp/haproxy_{hash}.cfg'.format(hash=hashlib.md5(repr(load_balancer)).hexdigest())
+        self.config_path = '/tmp/haproxy_{hash}.cfg'.format(hash=hashlib.md5(repr(load_balancer).encode()).hexdigest())
         self.listen_port = 80
 
         stats_config = self.load_balancer.get('stats') or {}
@@ -91,7 +91,7 @@ class Haproxy(object):
         # Sort by the length of domains (descending), to ensure that entries for overlapping paths like:
         #    example.com/sub/path, example.com/sub, example.com
         # will be ordered starting from the most specific one.
-        domains = list(sorted(domains_to_addresses.items(), key=lambda (domain, _): -len(domain)))
+        domains = list(sorted(domains_to_addresses.items(), key=lambda domain_address: -len(domain_address[0])))
 
         entries = []
         for domain, mapping in domains:
@@ -185,6 +185,6 @@ class MainHaproxy(Haproxy):
             config_file.write(config)
         address = self.load_balancer['address']
         url = 'http://{address}/upload_config'.format(**locals())
-        response = requests.post(url, data=base64.b64encode(config), headers=self.get_headers())
+        response = requests.post(url, data=base64.b64encode(config.encode()), headers=self.get_headers())
         if response.status_code != 200:
             raise Exception('upload_config http code: {status_code}'.format(status_code=response.status_code))

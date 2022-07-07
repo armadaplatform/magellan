@@ -1,4 +1,4 @@
-FROM microservice_python
+FROM microservice_python3_focal
 MAINTAINER Cerebro <cerebro@ganymede.eu>
 
 RUN apt-get update && apt-get install -y libffi-dev libssl-dev
