@@ -100,7 +100,10 @@ def match_domains_to_address(domain_wildcard, address):
 
 def match_domains_to_addresses(domains_to_services, service_to_addresses):
     result = {}
-    for domain_wildcard, service_definition in domains_to_services.items():
+    # We process domains with wildcards first, to allow overriding config for specific services.
+    domain_wildcards = sorted(domains_to_services.keys(), key=lambda domain: ('%' not in domain, domain))
+    for domain_wildcard in domain_wildcards:
+        service_definition = domains_to_services[domain_wildcard]
         if service_definition.get('protocol') != 'http':
             continue
         address = service_definition.get('address')
