@@ -103,7 +103,7 @@ backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }}
     reqirep ^([^\ ]*)\ /{{ entry['path'] }}/(.*)  \1\ /\2
     {%- endif %}
     {%- for container_id, address in entry['container_ids_with_addresses'] %}
-    server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
+    server {{ container_id }} {{ address }} maxconn {{ max_connections_service }} {{ entry['haproxy_options'] }}
         {%- if entry['header_host'] %}
     http-request set-header Host {{ entry['header_host'] }}
         {%- elif not (address.split(':')[0] is ip) %}
@@ -116,7 +116,7 @@ backend backend_{{ loop.index }}_{{ entry['cleaned_host'] }}
 backend backend_{{ loop.index }}a_{{ entry['cleaned_host'] }}
     reqirep ^([^\ ]*)\ /{{ entry['path'] }}\ (.*)  \1\ /\ \2
         {%- for container_id, address in entry['container_ids_with_addresses'] %}
-    server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}
+    server {{ container_id }} {{ address }} maxconn {{ max_connections_service }}  {{ entry['haproxy_options'] }}
         {%- endfor %}
     {%- endif %}
 {%- endfor %}

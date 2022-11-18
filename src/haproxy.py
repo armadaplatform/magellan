@@ -104,6 +104,7 @@ class Haproxy(object):
                 'path': path,
                 'container_ids_with_addresses': container_ids_with_addresses,
                 'allow_all': mapping['allow_all'],
+                'haproxy_options': 'check ssl verify none' if mapping['protocol'] == 'https' else '',
             }
             entries.append(entry)
 

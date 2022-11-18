@@ -104,7 +104,7 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
     domain_wildcards = sorted(domains_to_services.keys(), key=lambda domain: ('%' not in domain, domain))
     for domain_wildcard in domain_wildcards:
         service_definition = domains_to_services[domain_wildcard]
-        if service_definition.get('protocol') != 'http':
+        if service_definition.get('protocol') not in ['http', 'https']:
             continue
         address = service_definition.get('address')
         allow_all = service_definition.get('allow_all') is True
@@ -120,6 +120,7 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
             mapping[domain] = {
                 'addresses': addresses,
                 'allow_all': allow_all,
+                'protocol': service_definition['protocol'],
             }
             if header_host:
                 mapping[domain]['header_host'] = header_host

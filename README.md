@@ -39,7 +39,7 @@ and contain list of json objects like the one below:
 
 * Dictionary key - Name of the domain/URL that will be redirected.
 * Dictionary value - Information about desired target microservice.
-    * `protocol` - Protocol used by microservice. Currently only `http` is supported.
+    * `protocol` - Protocol used by microservice. Currently only `http`/`https` is supported.
     * `service_name`, `environment`, `app_id` - Name (required), environment (optional) and app_id (optional) of the target microservice.
 
         If environment/app_id is not supplied, `magellan` will look only for services with no environment/app_id set.
