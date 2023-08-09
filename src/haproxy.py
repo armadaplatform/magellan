@@ -104,8 +104,13 @@ class Haproxy(object):
                 'path': path,
                 'container_ids_with_addresses': container_ids_with_addresses,
                 'allow_all': mapping['allow_all'],
-                'haproxy_options': 'check ssl verify none' if mapping['protocol'] == 'https' else '',
+                'haproxy_options': '',
             }
+            if mapping['protocol'] in ['http', 'https']:
+                entry['haproxy_options'] += ' check init-addr last,libc,none resolvers myresolver'
+                if mapping['protocol'] == 'https':
+                    entry['haproxy_options'] += ' ssl verify none'
+
             entries.append(entry)
 
         j2_env = Environment(loader=FileSystemLoader(os.path.dirname(os.path.abspath(__file__))))

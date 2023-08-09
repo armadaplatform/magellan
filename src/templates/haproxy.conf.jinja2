@@ -32,6 +32,9 @@ defaults
     option http-server-close
     option forwardfor except 127.0.0.1
 
+resolvers myresolver
+    parse-resolv-conf
+
 frontend http-in
     bind *:{{ listen_port }}
     default_backend backend_default
