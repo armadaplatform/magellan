@@ -107,6 +107,8 @@ def match_domains_to_addresses(domains_to_services, service_to_addresses):
         if service_definition.get('protocol') not in ['http', 'https']:
             continue
         address = service_definition.get('address')
+        if address and (":" not in address):
+            address += ':{}'.format(80 if service_definition['protocol'] == 'http' else 443)
         allow_all = service_definition.get('allow_all') is True
         header_host = service_definition.get('header_host')
         if address:
